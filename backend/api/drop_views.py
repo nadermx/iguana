@@ -7,6 +7,7 @@ what is still missing. Copies come off the box through ansible. Wrong PINs share
 (`pos.auth`), five per address in fifteen minutes.
 """
 import hmac
+import json
 import logging
 import os
 from datetime import datetime
@@ -38,6 +39,24 @@ ITEMS = [
     ('other', 'Anything else', 'Answers, notes, links to footage.'),
 ]
 KEYS = {key for key, _, _ in ITEMS}
+
+# Our notes back to the uploader, per heading, in DROP_DIR/status.json (written over ansible, never in the repo,
+# since it says what the documents are missing): {"address": {"state": "check", "en": "...", "es": "..."}}.
+# state: done (received and fine), check (received, but something is wrong with it), missing (still needed).
+STATUS_FILE = 'status.json'
+STATES = ('done', 'check', 'missing')
+
+
+def _notes():
+    try:
+        with open(os.path.join(settings.DROP_DIR, STATUS_FILE), encoding='utf-8') as fh:
+            data = json.load(fh)
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError):
+        log.exception('drop: %s is unreadable, showing no notes', STATUS_FILE)
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def _received():
@@ -106,12 +125,18 @@ def drop(request):
                       None, list(settings.NOTIFY_EMAILS), fail_silently=True)
             return redirect(f'{request.path}?lang={lang}&sent={kind}')
 
-    received = _received()
+    received, notes = _received(), _notes()
+    items = []
+    for key, label, hint in ITEMS:
+        note = notes.get(key) if isinstance(notes.get(key), dict) else {}
+        state = note.get('state') if note.get('state') in STATES else ('done' if key in received else '')
+        # A note in one language only still shows, rather than a Spanish reader seeing nothing.
+        text = note.get(lang) or note.get('en') or note.get('es') or ''
+        items.append({'key': key, 'label': tr(lang, label), 'hint': tr(lang, hint), 'state': state, 'note': text})
     sent = request.GET.get('sent', '')
     context.update({
         'unlocked': True,
-        'items': [{'key': key, 'label': tr(lang, label), 'hint': tr(lang, hint), 'done': key in received}
-                  for key, label, hint in ITEMS],
+        'items': items,
         'sent_label': next((tr(lang, label) for key, label, _ in ITEMS if key == sent), ''),
     })
     return render(request, 'embed/drop.html', context)

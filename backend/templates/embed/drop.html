@@ -10,6 +10,9 @@
   .drop-items li { border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; }
   .drop-items strong { display: block; }
   .drop-items .done { color: #127a3a; font-weight: 600; }
+  .drop-items .check { color: #8a5a00; font-weight: 600; }
+  .drop-items .missing { color: #b42318; font-weight: 600; }
+  .drop-items .note { display: block; margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: #fff7e6; white-space: pre-line; }
   .drop-form label { display: block; font-weight: 600; margin-top: 12px; }
   .drop-form select, .drop-form input[type=file], .drop-form textarea, .drop-form input[type=password] {
     width: 100%; box-sizing: border-box; font: inherit; padding: 10px; min-height: 44px; }
@@ -56,8 +59,12 @@
     <ul class="drop-items">
       {% for item in items %}
         <li>
-          <strong>{{ item.label }}{% if item.done %} <span class="done">✓ {% t lang "received" %}</span>{% endif %}</strong>
+          <strong>{{ item.label }}
+            {% if item.state == "done" %} <span class="done">✓ {% t lang "received" %}</span>
+            {% elif item.state == "check" %} <span class="check">! {% t lang "received, needs attention" %}</span>
+            {% elif item.state == "missing" %} <span class="missing">{% t lang "still needed" %}</span>{% endif %}</strong>
           <span class="muted">{{ item.hint }}</span>
+          {% if item.note %}<span class="note">{{ item.note }}</span>{% endif %}
         </li>
       {% endfor %}
     </ul>

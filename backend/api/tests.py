@@ -4321,6 +4321,28 @@ class DropTests(TestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertNotIn('constancia', mail.outbox[0].body)
 
+    def test_our_notes_show_in_the_readers_language_and_override_received(self):
+        import json, os
+        with open(os.path.join(self.tmp.name, 'status.json'), 'w') as fh:
+            json.dump({'address': {'state': 'check', 'en': 'Bill is not in the company name.',
+                                   'es': 'El recibo no está a nombre de la empresa.'},
+                       'card': {'state': 'missing', 'en': 'Front and back, please.'}}, fh)
+        open(os.path.join(self.tmp.name, '20261012-1-0__address__bill.pdf'), 'w').close()
+        self._unlock()
+        page = self.client.get('/drop/?lang=es')
+        self.assertContains(page, 'El recibo no está a nombre de la empresa.')
+        self.assertContains(page, 'recibido, falta algo')
+        self.assertContains(page, 'Front and back, please.')  # no Spanish written: English rather than nothing
+        self.assertContains(page, 'todavía falta')
+        self.assertNotContains(page, 'bill.pdf')
+
+    def test_a_broken_status_file_shows_the_page_without_notes(self):
+        import os
+        with open(os.path.join(self.tmp.name, 'status.json'), 'w') as fh:
+            fh.write('{not json')
+        self._unlock()
+        self.assertContains(self.client.get('/drop/'), 'What is needed')
+
     def test_every_item_has_spanish(self):
         from api.drop_views import ITEMS
         from sales.i18n import ES

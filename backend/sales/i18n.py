@@ -470,6 +470,8 @@ ES = {
     'Send': 'Enviar',
     'What is needed': 'Lo que se necesita',
     'received': 'recibido',
+    'received, needs attention': 'recibido, falta algo',
+    'still needed': 'todavía falta',
     'Constancia de situación fiscal': 'Constancia de situación fiscal',
     'The PDF from the SAT, issued in the last 3 months. It carries the RFC and razón social.':
         'El PDF del SAT, emitido en los últimos 3 meses. Incluye el RFC y la razón social.',
