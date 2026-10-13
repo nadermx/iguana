@@ -602,7 +602,9 @@ PIN (`drop_pin` in the creds folder; it was emailed to hello@, so treat it as kn
 (`/var/lib/iguana/drop`, 0700, files 0600), never under `backend/media`, and **the page is upload-only**: it shows
 which headings have arrived and never a file name, a list or a download. It also takes photos of the ad billing card
 (owner, 2026-10-06), and a newer card upload replaces the older one. Wrong PINs share the POS lockout. Each
-upload emails `NOTIFY_EMAILS` the heading and count only. To read them, copy them off with ansible into
+upload emails `NOTIFY_EMAILS` the heading and count only. Our notes back to the uploader (received / needs attention / still
+needed, plus a sentence in each language) come from `drop_dir/status.json`, copied up with ansible (owner `iguana`,
+0600), never committed, because they say what a document is missing; no deploy needed to change them. To read them, copy them off with ansible into
 `~/.credentials/iguanacomedy-business/` and delete them from the server once used. Never put any of it in the repo.
 
 ### `/comic/`: comedians send their photo, clips and dates (owner, 2026-10-09)
