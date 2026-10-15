@@ -109,7 +109,9 @@ NIGHTS = {
         # Measured 2026-09-21, first day of delivery: 53.06 MXN bought 4 reservations at 13.27 each, on an 8.66%
         # CTR and a 28.90 CPM. The reach ad set spent 29.99 on 57 clicks and produced no checkout at all, so the
         # money moved to where the reservations are. The weekly total per night is unchanged.
-        'daily_conversions': 16600,    # centavos: 166.00 MXN, including the 20 reach gave back
+        # 2026-10-15: live was 220 (raised outside this script); +25% to 275 when the ads went to three days a
+        # week (crm/open_mic_ads.RUN_DAYS), so each night keeps more of its old weekly spend.
+        'daily_conversions': 27500,    # centavos: 275.00 MXN
         'daily_reach': 2000,           #           20.00 MXN, just above Meta's minimum, to keep the pixel fed
         'videos': ['openmic-es-long-9x16.mp4', 'openmic-es-short-9x16.mp4'],
         'image': 'openmic-es-flyer-4x5.jpg',
@@ -137,7 +139,8 @@ NIGHTS = {
         # 28.90, which is the English locale filter shrinking the pool rather than the ad underperforming. Held
         # at 100 rather than cut: 26 MXN a reservation is still well under this account's historic 55 to 220.
         # Plus the 20 the reach ad set gave back when it was retired.
-        'daily_conversions': 12000,
+        # 2026-10-15: live was 200; +25% to 250 with the three-day window, as for Spanish.
+        'daily_conversions': 25000,
         'daily_reach': 2000,
         'videos': ['openmic-en-long-9x16.mp4'],
         'image': 'openmic-en-flyer-4x5.jpg',

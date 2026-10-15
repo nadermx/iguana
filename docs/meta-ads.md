@@ -114,7 +114,7 @@ Tuesday night, Monday to Wednesday for the Wednesday, counted on the Cancun cale
 it pauses when the night is SOLD_OUT, full by `sales.demand`, or less than an hour from `show_time`. It touches the
 CAMPAIGN status only, never the ad sets, so the builder's choices (superseded ad sets, retired reach) stand.
 ⚠ The ad sets carry DAILY budgets, so running three days of seven cuts open mic spend to about 3/7 of what it was
-at the same daily figure. Raise the daily budget if the nights stop filling.
+at the same daily figure. Raise the daily budget if the nights stop filling. Raised 25% the same day (Spanish 220 to 275, English 200 to 250 MXN/day).
 ⚠ Inside the window a pause in Ads Manager is undone within ten minutes (and a resume outside it). To stop them
 deliberately set `open_mic_ads_autopilot: false` in `group_vars/all`, deploy, then run `meta-openmic-campaigns.py pause`.
 **Paid shows are not windowed**: `meta-show-campaign.py` starts each ad set as soon as it is built (`start_time` now
