@@ -106,14 +106,19 @@ costs clicks.
 | Open mic English · reservations / ad set | `120250126057820182` / `120250126057990182` |
 | Open mic English · local reach / ad set | `120250126062910182` / `120250126063000182` |
 
-🚨 **The two open mic reservation campaigns are switched by the server, not by hand** (owner, 2026-09-26:
-"keep running open mics always", stopping only when the night sells out or an hour before it). `manage.py
+🚨 **The two open mic reservation campaigns are switched by the server, not by hand.** `manage.py
 open_mic_ads --apply` runs every 10 minutes (`journalctl -t iguana-open-mic-ads`) and sets each campaign
-ACTIVE or PAUSED by its series' next night: paused when that night is SOLD_OUT, full by `sales.demand`, or
-less than an hour from `show_time`, and back on the next day for the following week's night. It touches the
+ACTIVE or PAUSED by its series' next night. **It runs only from two days before that night through the show day**
+(owner, 2026-10-15, replacing "keep running open mics always" from 2026-09-26): Sunday, Monday and Tuesday for the
+Tuesday night, Monday to Wednesday for the Wednesday, counted on the Cancun calendar from 00:00. Inside that window
+it pauses when the night is SOLD_OUT, full by `sales.demand`, or less than an hour from `show_time`. It touches the
 CAMPAIGN status only, never the ad sets, so the builder's choices (superseded ad sets, retired reach) stand.
-⚠ A pause in Ads Manager is undone within ten minutes. To stop them deliberately set
-`open_mic_ads_autopilot: false` in `group_vars/all`, deploy, then run `meta-openmic-campaigns.py pause`.
+⚠ The ad sets carry DAILY budgets, so running three days of seven cuts open mic spend to about 3/7 of what it was
+at the same daily figure. Raise the daily budget if the nights stop filling.
+⚠ Inside the window a pause in Ads Manager is undone within ten minutes (and a resume outside it). To stop them
+deliberately set `open_mic_ads_autopilot: false` in `group_vars/all`, deploy, then run `meta-openmic-campaigns.py pause`.
+**Paid shows are not windowed**: `meta-show-campaign.py` starts each ad set as soon as it is built (`start_time` now
+plus 2 minutes) and ends it at the show.
 Found 2026-09-26 with both campaigns paused by hand alongside Privilegio and nothing delivering.
 
 🚨 **The Meta app must be in LIVE mode or no ad creative can be made at all.** App `Iguana 2026`

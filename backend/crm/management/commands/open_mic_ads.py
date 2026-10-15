@@ -1,4 +1,4 @@
-"""Run the open mic ads unless their night is full or an hour from starting.
+"""Run the open mic ads for the three days before each night, unless it is full or an hour from starting.
 
     manage.py open_mic_ads            # say what it would do
     manage.py open_mic_ads --apply    # do it

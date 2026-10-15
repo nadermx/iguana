@@ -1,8 +1,11 @@
-"""Keep the open mic ads on, except when there is nothing left to sell them for.
+"""Run the open mic ads for the three days before each night, unless there is nothing left to sell.
 
-The owner's rule (2026-09-26): the open mic campaigns run always, and each one stops when its night sells out
-or one hour before the show starts. It comes back on by itself for the following week's night. A cron calls
-`sync()` every ten minutes; nothing in a request path touches Meta.
+The owner's rule (2026-10-15, replacing "run always" from 2026-09-26): a night's ads run on the show day and the
+two days before it, so Sunday, Monday and Tuesday for a Tuesday night, Monday to Wednesday for a Wednesday. Each
+campaign stops when its night sells out or one hour before the show starts, and comes back by itself three days
+before the following week's night. Paid shows are not governed here: their campaigns start as soon as they are
+built (`scripts/meta-show-campaign.py`). A cron calls `sync()` every ten minutes; nothing in a request path
+touches Meta.
 
 Why the switch is per LANGUAGE and not per night: the ads point at /open-mic/?night=es or ?night=en, which
 always shows the next bookable night of that series, so one campaign per series is the thing that sells every
@@ -12,7 +15,8 @@ Only the CAMPAIGN status is touched. Which ad sets inside it are live is a build
 (`scripts/meta-openmic-campaigns.py` pauses superseded ones and keeps the retired reach campaigns off), and a
 switch that also flipped ad sets would undo those decisions every ten minutes.
 
-⚠ It overrides a pause made by hand in Ads Manager within ten minutes, because "always" is the rule. To stop
+⚠ Inside the window it overrides a pause made by hand in Ads Manager within ten minutes, and outside it a
+resume. To stop
 the ads on purpose, set `open_mic_ads_autopilot: false` in group_vars and deploy, then pause them.
 """
 
@@ -39,6 +43,8 @@ CAMPAIGNS = {'es': 'Open mic Spanish · reservations', 'en': 'Open mic English �
 # The owner's number. With the show at 21:00 this is when doors open, which is when a reservation stops being
 # worth anything to the person making it.
 STOP_BEFORE_SHOW = timedelta(hours=1)
+# The show day plus the two before it, counted on the Cancun calendar: a Tuesday night starts on Sunday at 00:00.
+RUN_DAYS = 3
 FALLBACK_SHOW_TIME = time(21, 0)
 
 
@@ -84,9 +90,12 @@ def decide(lang, now=None):
     if room is not None and room['left'] <= 0:
         return False, f'next night is full ({room["taken"]} of {room["capacity"]})', event
     starts = show_starts(event)
+    first_day = timezone.localtime(starts).date() - timedelta(days=RUN_DAYS - 1)
+    if timezone.localdate(now) < first_day:
+        return False, f'ads start {first_day:%a %Y-%m-%d}, {RUN_DAYS} days before the night', event
     if now >= starts - STOP_BEFORE_SHOW:
         return False, f'show starts {timezone.localtime(starts):%H:%M}, less than an hour away', event
-    return True, 'next night has seats and is more than an hour out', event
+    return True, 'next night is within three days, has seats and is more than an hour out', event
 
 
 def _graph(method, path, **params):

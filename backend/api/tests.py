@@ -3962,7 +3962,8 @@ class DemandNudgeTests(ApiTestCase):
 
 
 class OpenMicAdsAutopilotTests(ApiTestCase):
-    """The open mic ads run always, and stop when their night is full or an hour from its show (owner, 2026-09-26).
+    """The open mic ads run the show day and the two before it, and stop when the night is full or an hour from its
+    show (owner, 2026-09-26, and the three-day window 2026-10-15).
 
     Driven by the clock rather than by today's date, because the moment that matters is 20:00 in Playa, which is
     01:00 UTC the next day: a test built from a bare UTC now() would put the night on the wrong day.
@@ -3992,15 +3993,25 @@ class OpenMicAdsAutopilotTests(ApiTestCase):
         self.assertIn('less than an hour', reason)
         self.assertFalse(decide('es', self.at(23, 30))[0])
 
-    def test_it_comes_back_for_next_week_the_morning_after(self):
+    def test_it_runs_only_from_two_days_before(self):
+        from crm.open_mic_ads import decide
+
+        run, reason, _ = decide('es', self.at(23, 59, days=-3))
+        self.assertFalse(run)
+        self.assertIn('3 days before', reason)
+        self.assertTrue(decide('es', self.at(0, 0, days=-2))[0])
+        self.assertTrue(decide('es', self.at(12, 0, days=-1))[0])
+
+    def test_after_the_night_it_waits_for_three_days_before_the_next(self):
         from crm.open_mic_ads import decide
 
         Event.objects.create(name='Open Mic', slug='mic-ads-next', status=Event.ACTIVE, venue=self.venue,
                              language='es', tags=['open-mic'], show_time='21:00',
                              date=datetime.combine(self.day + timedelta(days=7), time.min, tzinfo=CANCUN_TZ))
         run, _, event = decide('es', self.at(0, 5, days=1))
-        self.assertTrue(run)
+        self.assertFalse(run)
         self.assertEqual(event.slug, 'mic-ads-next')
+        self.assertTrue(decide('es', self.at(0, 5, days=5))[0])
 
     def test_a_full_room_stops_it_and_so_does_a_sold_out_mark(self):
         from crm.open_mic_ads import decide

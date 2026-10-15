@@ -342,8 +342,10 @@ ad account `act_178760798664478`, pixel `2122037578734069`. The rules that alway
   routes no bookings elsewhere, and the page sells the act. Its ad set optimises on custom conversion
   `1670646004630204` (paid checkouts), never plain InitiateCheckout, which finds free open mic bookers.
 - 🚨 **Open mic ads point at `/open-mic/`, never at a dated event page, and the server switches them.**
-  `open_mic_ads --apply` runs every 10 minutes and pauses a campaign when its next night is full or under an
-  hour away; a pause in Ads Manager is undone. To stop them set `open_mic_ads_autopilot: false`, deploy, then
+  `open_mic_ads --apply` runs every 10 minutes. 🔑 **A night's ads run only on the show day and the two days
+  before** (owner, 2026-10-15: Sunday to Tuesday for a Tuesday night, Monday to Wednesday for a Wednesday), and
+  stop when the night is full or under an hour away; inside that window a pause in Ads Manager is undone.
+  **Paid shows start as soon as their campaign is built** (`meta-show-campaign.py` sets `start_time` to now). To stop them set `open_mic_ads_autopilot: false`, deploy, then
   `meta-openmic-campaigns.py pause`.
 - 🚨 **Check the Graph API before believing any mail about the ad account**: phishing for it arrives with
   DKIM passing (`docs/mail.md`).
