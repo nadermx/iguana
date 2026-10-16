@@ -89,6 +89,54 @@ def _window(first_day, last_day, label):
     }
 
 
+# Which ad an order arrived through, read off the link it landed on. Meta appends fbclid and utm_source fb/ig to
+# every click on its own; our TikTok ads carry utm_source=tiktok and TikTok appends ttclid. `fbc` alone is the
+# pixel's 90-day memory of an earlier Meta click, so it counts for Meta only when nothing newer says otherwise.
+META_SOURCES = {'fb', 'ig', 'facebook', 'instagram', 'meta', 'an', 'msg'}
+
+
+def platform_of(attribution):
+    a = attribution if isinstance(attribution, dict) else {}
+    source = str(a.get('source', '')).lower()
+    if a.get('ttclid') or source == 'tiktok':
+        return 'tiktok'
+    if a.get('fbclid') or source in META_SOURCES or a.get('fbc'):
+        return 'meta'
+    return 'other'
+
+
+def _platforms(first_day, last_day):
+    """Bookings and seats per ad platform, against that platform's own spend, so the two can be compared."""
+    start = timezone.make_aware(timezone.datetime.combine(first_day, timezone.datetime.min.time()), CANCUN)
+    end = timezone.make_aware(timezone.datetime.combine(last_day + timedelta(days=1), timezone.datetime.min.time()), CANCUN)
+    rows = {key: {'key': key, 'bookings': 0, 'seats': 0, 'free_seats': 0, 'paid_seats': 0, 'money': Counter()}
+            for key in ('meta', 'tiktok', 'other')}
+    for order in (Order.objects.filter(status=Order.COMPLETED, created_at__gte=start, created_at__lt=end)
+                  .prefetch_related('tickets')):
+        if (order.customer_email or '').startswith('e2e-'):
+            continue
+        row = rows[platform_of(order.attribution)]
+        seats = order.tickets.count()
+        charged = max(order.total_amount_cents - order.pay_at_door_cents, 0)
+        row['bookings'] += 1
+        row['seats'] += seats
+        row['paid_seats' if charged else 'free_seats'] += seats
+        if charged:
+            row['money'][(order.currency or 'mxn').upper()] += charged
+    spend = spend_between(first_day, last_day)
+    # AdSpend holds Meta only so far; TikTok's spend has no snapshot yet, so its cost is unknown, not zero.
+    spend_cents = {'meta': spend.get(AdSpend.FREE, 0) + spend.get(AdSpend.PAID, 0), 'tiktok': None, 'other': None}
+    out = []
+    for key in ('meta', 'tiktok', 'other'):
+        row = rows[key]
+        cents = spend_cents[key]
+        row['spend'] = None if cents is None else cents / 100
+        row['per_seat'] = (cents / 100 / row['seats']) if cents and row['seats'] else None
+        row['revenue'] = ' · '.join(f'{c / 100:,.2f} {code}' for code, c in sorted(row['money'].items()) if c)
+        out.append(row)
+    return out
+
+
 def _upcoming_nights(limit=6):
     """Every night still to come: how many of the room we have sold, and how many are left.
 
@@ -293,6 +341,7 @@ def stats(request):
         'now': now,
         'fetched_ago': timesince(fetched) if fetched else '',
         'windows': windows,
+        'platforms': _platforms(today - timedelta(days=6), today),
         'fetched': fetched,
         'stale': (not fetched) or (timezone.now() - fetched) > STALE_AFTER,
         'day_fraction': round(((now.hour * 60 + now.minute) / (24 * 60)) * 100),

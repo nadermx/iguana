@@ -1,4 +1,4 @@
-"""Tell Meta what an ad was worth, from the order it produced.
+"""Tell Meta and TikTok what an ad was worth, from the order it produced.
 
 `crm.meta_capi` knows how to talk to Meta; this knows what an Iguana order looks like. Split that way because the
 checkout runs in an iframe on the API domain: the browser cookies Meta matches on (`_fbp`, `_fbc`) belong to the
@@ -10,7 +10,7 @@ the click id, the browser id, the IP and the user agent, and an unattributed sal
 ad did not work.
 """
 
-from crm import meta_capi
+from crm import meta_capi, tiktok_events
 
 
 def _attribution(order):
@@ -49,6 +49,33 @@ def _user(order):
     )
 
 
+def _tiktok_user(order):
+    attribution, visitor = _attribution(order), _visitor(order)
+    contact = order.contact
+    return tiktok_events.user_data(
+        email=order.customer_email or (contact.email if contact else ''),
+        phone=order.customer_phone or (contact.phone if contact else ''),
+        ip=visitor.get('ip', ''),
+        user_agent=attribution.get('userAgent', ''),
+        # k.js keeps every query parameter, so a TikTok ad click arrives as attribution['ttclid'].
+        ttclid=attribution.get('ttclid', ''),
+        ttp=attribution.get('ttp', ''),
+        external_id=contact.id if contact else '',
+    )
+
+
+def _tiktok_properties(custom):
+    """The same facts as Meta's custom_data, in TikTok's shape."""
+    ids = custom.get('content_ids') or []
+    return {
+        'currency': custom['currency'],
+        'value': custom['value'],
+        'content_type': 'product',
+        'contents': [{'content_id': str(ids[0]), 'content_name': custom.get('content_name', ''),
+                      'quantity': custom.get('num_items', 1)}] if ids else [],
+    }
+
+
 def _custom(order):
     items = list(order.items.all())
     # What actually reached us online. A pay-at-the-door reservation is a real booking worth optimising for, but it
@@ -77,8 +104,11 @@ def report_payment_info_added(order):
     so the campaigns had nothing to learn from. `report_checkout_engaged` is the real one now."""
     if is_probe(order):
         return
-    meta_capi.send('AddPaymentInfo', event_id=f'api-{order.id}', user=_user(order), custom=_custom(order),
+    custom = _custom(order)
+    meta_capi.send('AddPaymentInfo', event_id=f'api-{order.id}', user=_user(order), custom=custom,
                    source_url=_source_url(order))
+    tiktok_events.send('AddPaymentInfo', event_id=f'api-{order.id}', user=_tiktok_user(order),
+                       properties=_tiktok_properties(custom), page_url=_source_url(order))
 
 
 def report_checkout_engaged(*, event, attribution, visitor, user_agent, value_cents, currency, key):
@@ -91,13 +121,19 @@ def report_checkout_engaged(*, event, attribution, visitor, user_agent, value_ce
         ip=visitor.get('ip', ''), user_agent=user_agent,
         fbp=attribution.get('fbp', ''), fbc=attribution.get('fbc', ''),
     )
-    meta_capi.send('InitiateCheckout', event_id=f'ic-{key}', user=user, custom={
+    custom = {
         'currency': (currency or 'mxn').upper(),
         'value': round((value_cents or 0) / 100, 2),
         'content_type': 'product',
         'content_ids': [event.id],
         'content_name': event.name,
-    }, source_url=attribution.get('pageUrl', ''))
+    }
+    meta_capi.send('InitiateCheckout', event_id=f'ic-{key}', user=user, custom=custom,
+                   source_url=attribution.get('pageUrl', ''))
+    tiktok_events.send('InitiateCheckout', event_id=f'ic-{key}', user=tiktok_events.user_data(
+        ip=visitor.get('ip', ''), user_agent=user_agent,
+        ttclid=attribution.get('ttclid', ''), ttp=attribution.get('ttp', ''),
+    ), properties=_tiktok_properties(custom), page_url=attribution.get('pageUrl', ''))
 
 
 # The end-to-end test books a real seat through the real checkout, which is the whole point of it: nothing else
@@ -115,5 +151,9 @@ def report_purchase(order):
     """One Purchase per order, keyed on the order id so a Stripe webhook retry cannot double-count it."""
     if is_probe(order):
         return
-    meta_capi.send('Purchase', event_id=f'purchase-{order.id}', user=_user(order), custom=_custom(order),
+    custom = _custom(order)
+    meta_capi.send('Purchase', event_id=f'purchase-{order.id}', user=_user(order), custom=custom,
                    source_url=_source_url(order))
+    # TikTok's standard name for a completed sale.
+    tiktok_events.send('CompletePayment', event_id=f'purchase-{order.id}', user=_tiktok_user(order),
+                       properties=_tiktok_properties(custom), page_url=_source_url(order))

@@ -812,6 +812,95 @@ class MetaConversionTests(ApiTestCase):
         self.assertEqual(posted, [])
 
 
+class TikTokEventsTests(ApiTestCase):
+    """What TikTok gets told about a sale: the twin of MetaConversionTests, so the two platforms can be compared."""
+
+    UA = MetaConversionTests.UA
+    post = MetaConversionTests.post
+    book = MetaConversionTests.book
+
+    def test_phone_hash_keeps_the_plus_and_never_guesses_a_country(self):
+        from crm import tiktok_events
+
+        self.assertEqual(tiktok_events.hash_phone('+52 984 123 4567'), hashlib.sha256(b'+529841234567').hexdigest())
+        self.assertEqual(tiktok_events.hash_phone('984 123 4567'), '')
+        self.assertEqual(tiktok_events.hash_email(' Ada@Example.COM'), hashlib.sha256(b'ada@example.com').hexdigest())
+
+    @override_settings(TIKTOK_PIXEL_ID='PX', TIKTOK_EVENTS_TOKEN='tok')
+    def test_purchase_carries_the_tiktok_click_and_browser_ids(self):
+        from sales import ad_reporting
+
+        sent = []
+        original = ad_reporting.tiktok_events.send
+        ad_reporting.tiktok_events.send = lambda name, **kw: sent.append((name, kw))
+        try:
+            start = self.book(attribution={'ttclid': 'E.C.P.abc', 'ttp': 'ttp-123', 'source': 'tiktok',
+                                           'pageUrl': f'{SITE}/en/open-mic/'})
+            with self.captureOnCommitCallbacks(execute=True):
+                self.post(f'/api/checkout/orders/{start["orderId"]}/confirm', {})
+        finally:
+            ad_reporting.tiktok_events.send = original
+
+        self.assertEqual([name for name, _ in sent], ['AddPaymentInfo', 'CompletePayment'])
+        purchase = sent[-1][1]
+        # Without ttclid/ttp TikTok cannot tie the sale to the ad, and the platform comparison is meaningless.
+        self.assertEqual(purchase['user']['ttclid'], 'E.C.P.abc')
+        self.assertEqual(purchase['user']['ttp'], 'ttp-123')
+        self.assertEqual(purchase['user']['email'], hashlib.sha256(b'ada@example.com').hexdigest())
+        self.assertEqual(purchase['user']['user_agent'], self.UA)
+        self.assertEqual(purchase['properties']['value'], 20.0)
+        self.assertEqual(purchase['properties']['currency'], 'USD')
+        self.assertEqual(purchase['page_url'], f'{SITE}/en/open-mic/')
+        self.assertEqual(purchase['event_id'], f'purchase-{start["orderId"]}')
+
+    @override_settings(TIKTOK_PIXEL_ID='PX', TIKTOK_EVENTS_TOKEN='tok')
+    def test_a_sale_completes_even_when_tiktok_fails(self):
+        from crm import tiktok_events
+
+        original = tiktok_events._post
+        tiktok_events._post = lambda event: (_ for _ in ()).throw(OSError('business-api.tiktok.com is down'))
+        try:
+            start = self.book()
+            with self.captureOnCommitCallbacks(execute=True):
+                self.post(f'/api/checkout/orders/{start["orderId"]}/confirm', {})
+        finally:
+            tiktok_events._post = original
+        self.assertEqual(Order.objects.get(pk=start['orderId']).status, Order.COMPLETED)
+
+    def test_nothing_is_sent_when_tiktok_is_not_configured(self):
+        from crm import tiktok_events
+
+        posted = []
+        original = tiktok_events._post
+        tiktok_events._post = posted.append
+        try:
+            tiktok_events.send('CompletePayment', event_id='x', user={'email': 'abc'})
+        finally:
+            tiktok_events._post = original
+        self.assertEqual(posted, [])
+
+
+class PlatformSplitTests(TestCase):
+    """/stats/ compares Meta and TikTok on our own bookings, so which ad a booking came through must be read right."""
+
+    def test_reads_the_link_the_booking_landed_on(self):
+        from api.stats_views import platform_of
+
+        self.assertEqual(platform_of({'ttclid': 'x'}), 'tiktok')
+        self.assertEqual(platform_of({'source': 'tiktok', 'medium': 'paid'}), 'tiktok')
+        self.assertEqual(platform_of({'fbclid': 'x', 'source': 'fb'}), 'meta')
+        self.assertEqual(platform_of({'source': 'ig'}), 'meta')
+        self.assertEqual(platform_of({'ref': 'om-email'}), 'other')
+        self.assertEqual(platform_of(None), 'other')
+
+    def test_a_tiktok_click_beats_an_old_meta_cookie(self):
+        """`fbc` is the pixel's memory of a Meta click up to 90 days old. The link they just used is newer."""
+        from api.stats_views import platform_of
+
+        self.assertEqual(platform_of({'fbc': 'fb.1.1.old', 'ttclid': 'new'}), 'tiktok')
+        self.assertEqual(platform_of({'fbc': 'fb.1.1.old'}), 'meta')
+
+
 class WeeklyEmailTests(ApiTestCase):
     """The weekly what-is-on mail: both languages, working links, and a language learned from a click."""
 

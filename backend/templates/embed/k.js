@@ -55,6 +55,8 @@
       // The pixel normally writes _fbc from fbclid, but it is the first thing an ad blocker stops. Rebuilding it
       // in Meta's own format keeps the click attributable when the pixel never ran.
       out.fbc = cookie("_fbc") || (params.get("fbclid") ? "fb.1." + Date.now() + "." + params.get("fbclid") : "");
+      // TikTok's equivalents: the browser id its pixel writes on this origin. ttclid itself is collected above.
+      out.ttp = cookie("_ttp");
       // The page the fan actually saw, rather than the iframe URL, so Meta reports results per landing page.
       out.pageUrl = location.href.slice(0, 200);
     } catch (e) {}

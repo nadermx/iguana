@@ -31,6 +31,8 @@ GEOIP_DB = ''
 
 # Meta Conversions API (server-side Purchase and InitiateCheckout). Blank locally: nothing is reported.
 META_PIXEL_ID = ''
+TIKTOK_PIXEL_ID = ''
+TIKTOK_EVENTS_TOKEN = ''
 META_CAPI_TOKEN = ''
 META_ADS_TOKEN = ''          # system-user token with ads_read, for /stats/
 META_AD_ACCOUNT = 'act_178760798664478'

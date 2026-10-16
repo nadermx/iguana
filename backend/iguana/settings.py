@@ -27,6 +27,10 @@ META_ADS_TOKEN = getattr(config, 'META_ADS_TOKEN', '')
 META_AD_ACCOUNT = getattr(config, 'META_AD_ACCOUNT', 'act_178760798664478')
 # Set only while watching Test Events in Events Manager; it keeps those events out of the real dataset.
 META_TEST_EVENT_CODE = getattr(config, 'META_TEST_EVENT_CODE', '')
+# TikTok's twin of the above (crm/tiktok_events.py). Blank means TikTok is simply not told.
+TIKTOK_PIXEL_ID = getattr(config, 'TIKTOK_PIXEL_ID', '')
+TIKTOK_EVENTS_TOKEN = getattr(config, 'TIKTOK_EVENTS_TOKEN', '')
+TIKTOK_TEST_EVENT_CODE = getattr(config, 'TIKTOK_TEST_EVENT_CODE', '')
 
 # DB-IP City Lite (.mmdb) for contact and order locations; see crm/geo.py. Blank or missing file = no lookups.
 GEOIP_DB = getattr(config, 'GEOIP_DB', '')

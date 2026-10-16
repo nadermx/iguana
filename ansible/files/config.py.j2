@@ -26,6 +26,8 @@ NOTIFY_EMAILS = {{ notify_emails | to_json }}
 MARKETING_REPLY_TO = 'hello@{{ site_domain }}'
 META_PIXEL_ID = '{{ meta_pixel_id }}'
 META_CAPI_TOKEN = '{{ meta_capi_token }}'
+TIKTOK_PIXEL_ID = '{{ tiktok_pixel_id | default('') }}'
+TIKTOK_EVENTS_TOKEN = '{{ tiktok_events_token | default('') }}'
 META_TEST_EVENT_CODE = '{{ meta_test_event_code }}'
 # Read-only Marketing API access for the spend half of /stats/. Same system-user token as the CAPI one; it is
 # a cron that uses it, never a request.

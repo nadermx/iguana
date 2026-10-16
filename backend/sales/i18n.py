@@ -186,6 +186,12 @@ ES = {
     'Over seven days: {0} visits, {1} started, {2} booked.':
         'En siete días: {0} visitas, {1} empezaron, {2} reservaron.',
     'Everything else': 'Lo demás',
+    'Where the bookings came from, last 7 days': 'De dónde vinieron las reservaciones, últimos 7 días',
+    'No ad click': 'Sin clic en anuncio',
+    '{0} paid': '{0} pagados',
+    'not connected yet': 'aún no conectado',
+    "A booking counts for the platform whose ad link it arrived through. Cost per seat is that platform's spend over our own seats.":
+        'Una reservación cuenta para la plataforma por cuyo anuncio llegó. El costo por lugar es el gasto de esa plataforma entre nuestros lugares.',
     '{0} people on the mailing list, {1} joined this week.':
         '{0} personas en la lista de correo, {1} se sumaron esta semana.',
     '{0} table(s) open at the bar, {1} owed': '{0} mesa(s) abiertas en la barra, {1} por cobrar',

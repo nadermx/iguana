@@ -10,6 +10,7 @@ import dmSansLatinExtItalic from "@fontsource-variable/dm-sans/files/dm-sans-lat
 import Footer from "../components/Footer.astro";
 import Header from "../components/Header.astro";
 import MetaPixel from "../components/MetaPixel.astro";
+import TikTokPixel from "../components/TikTokPixel.astro";
 import { comedyClubSchema, jsonLd } from "../lib/structured-data";
 import { site } from "../content/site";
 import { getKintanaEnv } from "../lib/kintana-env";
@@ -178,6 +179,7 @@ const trackerMarkup =
     <style is:inline set:html={fontFaces} />
     {clickySiteId && clickyScriptPath ? <script is:inline async data-id={clickySiteId} src={clickyScriptPath}></script> : null}
     <MetaPixel content={pixelContent} />
+    <TikTokPixel content={pixelContent} />
   </head>
   <body class="relative bg-white text-neutral-900 antialiased">
     <Header transparent={transparentHeader} pathname={Astro.url.pathname} locale={locale} />

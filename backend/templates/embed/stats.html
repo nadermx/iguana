@@ -183,6 +183,23 @@
     </section>
   {% endfor %}
 
+  <section class="win">
+    <h2>{% t lang "Where the bookings came from, last 7 days" %}</h2>
+    <table class="nights">
+      <tr><td></td><td>{% t lang "Bookings" %}</td><td>{% t lang "Seats" %}</td><td>{% t lang "Ad spend" %}</td><td>/ {% t lang "seat" %}</td></tr>
+      {% for p in platforms %}
+        <tr>
+          <td><strong>{% if p.key == "meta" %}Meta{% elif p.key == "tiktok" %}TikTok{% else %}{% t lang "No ad click" %}{% endif %}</strong></td>
+          <td>{{ p.bookings }}</td>
+          <td>{{ p.seats }}{% if p.paid_seats %} <small>({% t lang "{0} paid" p.paid_seats %})</small>{% endif %}</td>
+          <td>{% if p.spend is not None %}${{ p.spend|floatformat:2 }}{% elif p.key == "tiktok" %}<span class="none">{% t lang "not connected yet" %}</span>{% endif %}</td>
+          <td>{% if p.per_seat %}${{ p.per_seat|floatformat:2 }}{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </table>
+    <p class="note">{% t lang "A booking counts for the platform whose ad link it arrived through. Cost per seat is that platform's spend over our own seats." %}</p>
+  </section>
+
   {% if bar_nights %}
     <section class="win">
       <h2>{% t lang "The bar, night by night" %}</h2>
