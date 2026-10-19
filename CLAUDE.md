@@ -345,6 +345,10 @@ ad account `act_178760798664478`, pixel `2122037578734069`. The rules that alway
   `open_mic_ads --apply` runs every 10 minutes. 🔑 **A night's ads run only on the show day and the two days
   before** (owner, 2026-10-15: Sunday to Tuesday for a Tuesday night, Monday to Wednesday for a Wednesday), and
   stop when the night is full or under an hour away; inside that window a pause in Ads Manager is undone.
+  🚨 **A campaign that says ACTIVE can still spend nothing** when its ad set or ads are paused by hand: from
+  2026-10-11 to 10-19 the autopilot logged "ACTIVE already" over a paused Spanish ad set and paused English ads.
+  Inside the window it now also un-pauses the builder's `... · checkout` ad set and its ads (never the retired
+  ones), and `meta-ads.py status` lists an ACTIVE ad set with no active ad as NOT delivering.
   **Paid shows start as soon as their campaign is built** (`meta-show-campaign.py` sets `start_time` to now). To stop them set `open_mic_ads_autopilot: false`, deploy, then
   `meta-openmic-campaigns.py pause`.
 - 🚨 **Check the Graph API before believing any mail about the ad account**: phishing for it arrives with

@@ -11,9 +11,12 @@ Why the switch is per LANGUAGE and not per night: the ads point at /open-mic/?ni
 always shows the next bookable night of that series, so one campaign per series is the thing that sells every
 Tuesday (or every Wednesday) in turn. The night that decides whether it runs is the next one on the calendar.
 
-Only the CAMPAIGN status is touched. Which ad sets inside it are live is a builder decision
-(`scripts/meta-openmic-campaigns.py` pauses superseded ones and keeps the retired reach campaigns off), and a
-switch that also flipped ad sets would undo those decisions every ten minutes.
+The switch is the CAMPAIGN status. Which ad sets inside it are live is a builder decision
+(`scripts/meta-openmic-campaigns.py` pauses superseded ones and keeps the retired reach campaigns off), so the
+only ad set this ever touches is the builder's current one, named `... · checkout`, and its ads, and only inside
+the window. Before that (until 2026-10-19) a pause made on the ad set or the ads by hand left the campaign ACTIVE
+over nothing that could deliver, and this logged "ACTIVE already" every ten minutes while the Spanish night went
+five days and the English one eight without spending a peso.
 
 ⚠ Inside the window it overrides a pause made by hand in Ads Manager within ten minutes, and outside it a
 resume. To stop
@@ -45,6 +48,8 @@ CAMPAIGNS = {'es': 'Open mic Spanish · reservations', 'en': 'Open mic English �
 STOP_BEFORE_SHOW = timedelta(hours=1)
 # The show day plus the two before it, counted on the Cancun calendar: a Tuesday night starts on Sunday at 00:00.
 RUN_DAYS = 3
+# The builder's current ad set in each campaign ends with this (its EVENT_TAG for INITIATED_CHECKOUT).
+LIVE_ADSET_SUFFIX = ' · checkout'
 FALLBACK_SHOW_TIME = time(21, 0)
 
 
@@ -142,8 +147,32 @@ def sync(apply=False, now=None):
             continue
         if found['status'] == want:
             lines.append(f'{lang}: {want} already ({reason}; night {night})')
-            continue
-        if apply:
-            _graph('POST', found['id'], status=want)
-        lines.append(f'{lang}: {found["status"]} -> {want}{"" if apply else " (dry run)"} ({reason}; night {night})')
+        else:
+            if apply:
+                _graph('POST', found['id'], status=want)
+            lines.append(f'{lang}: {found["status"]} -> {want}{"" if apply else " (dry run)"} ({reason}; night {night})')
+        if run:
+            lines += [f'{lang}: {line}' for line in _resume_inside(found['id'], apply)]
+    return lines
+
+
+def _resume_inside(campaign_id, apply):
+    """Un-pause the builder's ad set and its ads, so an ACTIVE campaign has something that can spend."""
+    adsets = _graph('GET', f'{campaign_id}/adsets', fields='id,name,status,ads.limit(50){id,name,status}',
+                    limit=50).get('data', [])
+    live = [a for a in adsets if a['name'].endswith(LIVE_ADSET_SUFFIX)]
+    if not live:
+        log.warning('open mic campaign %s has no ad set ending %r, nothing can deliver', campaign_id,
+                    LIVE_ADSET_SUFFIX)
+        return [f'no ad set ending "{LIVE_ADSET_SUFFIX.strip()}", NOTHING CAN DELIVER']
+    lines = []
+    for adset in live:
+        paused = [adset] if adset['status'] == 'PAUSED' else []
+        paused += [ad for ad in (adset.get('ads') or {}).get('data', []) if ad['status'] == 'PAUSED']
+        for row in paused:
+            if apply:
+                _graph('POST', row['id'], status='ACTIVE')
+            log.warning('open mic %s was paused inside its window, %s', row['name'],
+                        'resumed' if apply else 'would resume')
+            lines.append(f'PAUSED -> ACTIVE{"" if apply else " (dry run)"} {row["name"]}')
     return lines

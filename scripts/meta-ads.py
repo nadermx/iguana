@@ -141,12 +141,17 @@ def cmd_status(args) -> None:
               f"   clicks {int(row.get('clicks', 0)):>6,}")
 
     today = dt.date.today().isoformat()
-    live, expired = [], 0
-    for adset in pages(AD_ACCOUNT + "/adsets", fields="id,name,effective_status,end_time,campaign{name}",
-                       effective_status='["ACTIVE"]'):
+    live, expired, adless = [], 0, []
+    for adset in pages(AD_ACCOUNT + "/adsets", fields="id,name,effective_status,end_time,campaign{name},"
+                       "ads.limit(50){effective_status}", effective_status='["ACTIVE"]'):
         end = (adset.get("end_time") or "")[:10]
+        ads = [ad["effective_status"] for ad in (adset.get("ads") or {}).get("data", [])]
         if end and end < today:
             expired += 1
+        elif "ACTIVE" not in ads:
+            # An ACTIVE ad set whose ads are all paused or in review spends nothing (2026-10-19: the English open
+            # mic ran eight days like that while this line listed it as delivering).
+            adless.append((adset, ads))
         else:
             live.append(adset)
 
@@ -157,6 +162,9 @@ def cmd_status(args) -> None:
         print(f"  {adset['id']}  ends {end:11}  {campaign[:38]:38}  {adset['name'][:34]}")
     if expired:
         print(f"  ({expired} more ad set(s) say ACTIVE but their schedule already ended, so they spend nothing)")
+    for adset, ads in adless:
+        print(f"  NOT delivering: {adset['name'][:50]} is ACTIVE but has no active ad"
+              f" ({', '.join(sorted(set(ads))) or 'no ads'})")
 
 
 def cmd_campaigns(args) -> None:

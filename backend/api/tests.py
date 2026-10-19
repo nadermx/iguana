@@ -4127,6 +4127,9 @@ class OpenMicAdsAutopilotTests(ApiTestCase):
         posts = []
 
         def graph(method, path, **params):
+            if method == 'GET' and path.endswith('/adsets'):
+                return {'data': [{'id': '11', 'name': 'Tuesdays · reservations · checkout', 'status': 'ACTIVE',
+                                  'ads': {'data': [{'id': '111', 'name': 'flyer', 'status': 'ACTIVE'}]}}]}
             if method == 'GET':
                 return {'data': [{'id': '1', 'name': open_mic_ads.CAMPAIGNS['es'], 'status': 'PAUSED'},
                                  {'id': '2', 'name': open_mic_ads.CAMPAIGNS['en'], 'status': 'PAUSED'}]}
@@ -4139,6 +4142,34 @@ class OpenMicAdsAutopilotTests(ApiTestCase):
             open_mic_ads.sync(apply=True, now=self.at(9, days=-2))
         self.assertIn('PAUSED -> ACTIVE (dry run)', dry[0])
         self.assertEqual(posts, [('1', {'status': 'ACTIVE'})])
+
+    def test_a_hand_pause_inside_the_campaign_is_undone_in_the_window_and_only_on_the_live_ad_set(self):
+        """2026-10-19: the campaigns stayed ACTIVE while the ad set (es) and the ads (en) were paused by hand,
+        and nothing spent for days while the log said "ACTIVE already"."""
+        from crm import open_mic_ads
+
+        posts = []
+
+        def graph(method, path, **params):
+            if method == 'GET' and path.endswith('/adsets'):
+                return {'data': [
+                    {'id': '11', 'name': 'Tuesdays · reservations · checkout', 'status': 'PAUSED',
+                     'ads': {'data': [{'id': '111', 'name': 'flyer', 'status': 'PAUSED'},
+                                      {'id': '112', 'name': 'video', 'status': 'ACTIVE'}]}},
+                    {'id': '12', 'name': 'Tuesdays · reservations', 'status': 'PAUSED',
+                     'ads': {'data': [{'id': '121', 'name': 'old flyer', 'status': 'PAUSED'}]}}]}
+            if method == 'GET':
+                return {'data': [{'id': '1', 'name': open_mic_ads.CAMPAIGNS['es'], 'status': 'ACTIVE'},
+                                 {'id': '2', 'name': open_mic_ads.CAMPAIGNS['en'], 'status': 'PAUSED'}]}
+            posts.append((path, params))
+            return {'success': True}
+
+        with self.settings(META_ADS_TOKEN='t'), patch.object(open_mic_ads, '_graph', side_effect=graph):
+            open_mic_ads.sync(apply=True, now=self.at(9, days=-2))
+            self.assertEqual(posts, [('11', {'status': 'ACTIVE'}), ('111', {'status': 'ACTIVE'})])
+            posts.clear()
+            open_mic_ads.sync(apply=True, now=self.at(9, days=-4))
+        self.assertEqual(posts, [('1', {'status': 'PAUSED'})])
 
 
 class PastShowSummaryTests(ApiTestCase):
