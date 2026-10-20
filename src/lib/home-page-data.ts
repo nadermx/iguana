@@ -89,7 +89,9 @@ export async function loadHomePageData(citySlug?: string, locale?: Locale): Prom
         (!slug.length || eventCitySlug(evt) === slug),
     ),
   );
-  const filled = [...prioritized, ...spare].slice(0, HOME_EVENT_SLOTS);
+  // The language and on-sale order above decides WHICH nights get a slot; the grid itself reads by date, sold-out
+  // nights in their place, because a calendar that runs next Tuesday before tonight reads as broken (owner, 2026-10-20).
+  const filled = sortEventsAscending([...prioritized, ...spare].slice(0, HOME_EVENT_SLOTS));
 
   return {
     hasCredentials,
