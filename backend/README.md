@@ -18,6 +18,9 @@ backend and set `PUBLIC_KINTANA_API_KEY` to one of `PUBLIC_API_KEYS`.
 | Pageview / event ingest | `crm.TrackedEvent` |
 | CRM: contacts, lists, campaign history, inbox history | imported from the export, read-only history in admin |
 
+There is no membership on sale any more (the plan is inactive and `members_eligible` is off on every event), so
+the member pricing below is dormant code kept under test.
+
 Members get `free_tickets_per_order` free tickets (priciest first) on events with `members_eligible`,
 then `guest_discount_percent` off the rest. Member pricing only applies when the checkout email matches
 the signed-in member.

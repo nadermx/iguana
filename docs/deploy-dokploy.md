@@ -1,6 +1,7 @@
 # Deploy on Dokploy (legacy)
 
-> **Note:** Production hosting moved to Cloudflare Pages. See [deploy-cloudflare.md](deploy-cloudflare.md). Keep this doc only if you still run the Docker stack elsewhere.
+> **Not the production path.** iguanacomedy.com runs on a VPS deployed with `ansible/deploy.yml` (see `CLAUDE.md`).
+> This page is kept for reference only.
 
 This site runs as an **Astro Node server** in Docker. Kintana data is loaded on each request from Dokploy **Environment** variables (no build-time toggle required). Container port **3000**.
 

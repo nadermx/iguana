@@ -1,4 +1,7 @@
-# Deploy on Cloudflare Pages
+# Deploy on Cloudflare Pages (legacy)
+
+> **Not the production path.** iguanacomedy.com runs on a VPS deployed with `ansible/deploy.yml` (see `CLAUDE.md`).
+> This page is kept for reference only.
 
 This site runs as an **Astro SSR app** on **Cloudflare Pages** using `@astrojs/cloudflare`. Kintana data loads on each request from Cloudflare environment variables.
 
