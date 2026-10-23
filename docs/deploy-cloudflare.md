@@ -6,7 +6,7 @@ This site runs as an **Astro SSR app** on **Cloudflare Pages** using `@astrojs/c
 
 In [Cloudflare Dashboard](https://dash.cloudflare.com/) → **Workers & Pages** → **Create** → **Pages** → **Connect to Git**, select:
 
-- Repository: `SlaterMarketing/iguana`
+- Repository: `nadermx/iguana` (was `SlaterMarketing/iguana`, gone since 2026-10)
 - Branch: `main` (or your production branch)
 
 ## 2. Build settings
