@@ -148,3 +148,35 @@ exits 2. Facebook posts go through `/{page}/photos` with a Page token derived at
 Instagram through `/media`, a `status_code` poll, then `/media_publish`. Weekly open mics have no image and no
 `showTime` in the data, so they cannot be posted until one is set (or `--image` is passed); WebP is refused.
 Tests: `python3 -m unittest discover -s scripts/tests`.
+
+## Ad spend on /stats/ (moved from CLAUDE.md, 2026-10-23)
+
+🚨 **No request path may call Meta, and `/stats/` does not.** The ad account's rate limit clears only by
+waiting, so a page that asked Graph on every load would eventually wall itself and take the numbers down with
+it, and a Graph outage would turn the dashboard into a 500 at the moment somebody wanted to decide whether to
+keep spending. `manage.py snapshot_ad_spend` runs every 15 minutes and writes `crm.AdSpend`, one row per
+campaign per day; the page reads rows and prints how old they are, and says so loudly past 45 minutes.
+The token is `META_ADS_TOKEN` in `config.py`, rendered from `config.py.j2` like every other secret.
+⚠ **config.py is TEMPLATED on every deploy.** A hand-edited line in it survives until the next deploy and no
+longer: add the key to `files/config.py.j2` and `group_vars/all`, never with `lineinfile`.
+
+🚨 **Reach counts PEOPLE, so it is never summed across days and neither is frequency.** Adding seven daily
+reaches counts somebody who saw the ad on Monday and again on Thursday twice, and the frequency derived from
+that sum reads LOWER than the truth, which is the direction that hides ad fatigue. The seven-day figures are
+therefore asked of Meta AS a seven-day window and stored as their own `AdSpend` row (`window='WEEK'`, same
+day and campaign as the daily rows). Anything that sums spend must filter `window=DAY` or it double counts.
+Frequency above **1.3 a week is flagged** (`ad_spend.FREQUENCY_TARGET`, the owner's number, set 2026-09-24
+looking at 1.7 and 1.8 on the open mics). It is a house target rather than an industry one: 1.7 over seven
+days is a quarter of an impression per person per day and nobody would call it fatigue. With the budget fixed
+the only honest lever is audience size, so the open mic reservation ad sets went from a 25km to a 40km radius
+(Puerto Aventuras and Akumal, the drive people here actually make), matching what Privilegio already used.
+⚠ Frequency is a TRAILING seven-day figure, so a targeting change shows up over days, not on the next refresh.
+
+🔑 **Cost per seat is Meta's spend over OUR seats, never over Meta's purchase count.** Their attribution has
+run both above and below the orders we hold (5 reported against 7 real on 2026-09-24, 22 against 7 the day
+before), so the page shows their number beside ours and never divides by it. Probe bookings (`e2e-` emails)
+are excluded from every denominator.
+
+🚨 **`scripts/meta-ads.py --days N` means N+1 days.** `window()` is `since = today - N, until = today`, and
+Meta's `time_range` is inclusive at both ends, so `--days 1` is yesterday AND today. It reported 1,162 MXN as
+"today" when today was 226, which reads as a fivefold overspend. `--days 0` is today.

@@ -128,3 +128,58 @@ reads correctly under `debug_peer_list = <domain>` with `debug_peer_level = 2` (
 flush, then `postconf -X` both and reload again).
 ⚠ **A Spamhaus lookup answering `127.255.255.254` is NOT a listing**, it is "query refused, you used a public
 resolver". The box resolves through one, so the PBL claim above cannot be checked from there.
+
+## The mails that go out on their own (moved from CLAUDE.md, 2026-10-23)
+
+- **Daily 10:00 Playa**: `send_show_reminders` writes to everyone booked for TONIGHT (`sales/reminders.py`,
+  stamped with `Order.reminder_sent_at`, probes and promoter imports skipped). **Open mics carry a "give your seat
+  back" link** (`/orders/<token>/release/`); **paid shows get the reminder only**, because a paid ticket given
+  back is a refund conversation (owner, 2026-09-27). Releasing sets the order CANCELLED plus `released_at`, and
+  since every count reads COMPLETED the seat is instantly back on sale on the lander, the demand lines and the ads
+  autopilot. Refused once the show has started or a ticket was scanned. The door shows `LIBERÓ SU LUGAR`.
+- **Monday 09:00 Playa**: the what-is-on newsletter (`send_whats_on`, `newsletter_enabled`).
+- **Daily 11:00 Playa**: `send_after_show` writes to everyone who booked the night before. It hopes they made
+  it, asks them to pass the open mic on, and asks them to reply with anything that could have been better;
+  replies go to hello@. Dry run unless `--send`; every booking it considers is stamped with
+  `Order.follow_up_sent_at`, so a re-run or a double fire cannot send twice.
+  ⚠ **It must not thank them for coming.** Nobody is scanned at the door (0 of 24 on 2026-09-23), so
+  attendance is not a fact we hold.
+
+🔑 **The weekly mail is ONE language per reader, never both** (owner, 2026-09-28). `crm.mail.reader_language`
+decides it for the subject, body and footer alike: `contact.locale` (set at sign-up from the site language, and
+again whenever they click through a marked link), else the language of their latest booking, else **English**.
+Most of the blank contacts are the Kintana import. Until 2026-09-28 it carried both languages, reader's first,
+and led unknowns with Spanish; do not bring that back without asking.
+
+## Inbox, opt-in, bounces and marketing mail (moved from CLAUDE.md, 2026-10-23)
+
+Every human alias delivers to the local `inbox` user as well as forwarding. `/usr/local/bin/iguana-mail`
+(read only) reads it: `iguana-mail`, `show 37`, `search reservation`, `list --box dmarc`. Check it when a customer
+says they wrote in, or an account notice might be waiting. History and evidence for everything below:
+**`docs/mail.md`**.
+
+- 🚨 **Newsletter sign-ups are double opt-in, because every one this site had received was a bot** sending
+  exactly what the real form sends. `crm/optin.py`: a sign-up is created unsubscribed and on no list until
+  `/newsletter/confirm/<token>`. Key "already confirmed" on whether `get_or_create` created the row, never on
+  `Contact.subscribed` (it defaults True). `catalog/spam.py` guards the contact form and answers a dropped
+  submission with the same success response.
+- **The Monday newsletter** runs while `newsletter_enabled: true` in `group_vars/all`. Each open mic line pins
+  `night` and `date`, or the lander defaults to the wrong night.
+- **An emailed "unsubscribe" is honoured** (`process_unsubscribe_mail --apply`, every 20 minutes), reading only
+  the part of the body the person typed and requiring a request rather than a mention. `List-Unsubscribe`
+  offers the one-click URL only, no `mailto:`.
+- 🚨 **Only no-such-mailbox bounces unsubscribe** (`process_bounces`, codes `5.1.1 5.1.0 5.1.3 5.1.6`). A
+  `5.7.1` is Gmail refusing OUR IPv4 (38.86.78.0/24 is on the Spamhaus PBL), not a dead address. Read the
+  `message/delivery-status` part, never the prose.
+- 🚨 **Postfix keeps `smtp_mx_session_limit = 1` and `smtp_balance_inet_protocols = no`**, or a Gmail
+  over-quota deferral on IPv6 is retried over IPv4 and turned into a permanent rejection. `postconf` shows
+  main.cf, not the running process: check the master's start time and `postfix reload`.
+- `/etc/postfix/blocked_senders` (managed in `mail.yml`) holds infrastructure that has already phished the ad
+  account.
+- 🚨 **`send_marketing` must never call `message.send(fail_silently=True)` with a connection**: Django raises on
+  the first recipient. The tolerance goes on `get_connection(fail_silently=True)`.
+
+Marketing mail must go through `crm.mail.send_marketing` (or `manage.py send_newsletter`, a dry run without
+`--send`), which drops unsubscribed contacts and attaches the unsubscribe footer and `List-Unsubscribe` headers
+itself. `crm/unsubscribe.py` signs the per-address token; `/unsubscribe/<token>` serves the bilingual page and
+accepts Gmail's cookie-less one-click POST. Receipts and sign-in codes deliberately carry no unsubscribe link.
