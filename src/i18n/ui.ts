@@ -145,6 +145,9 @@ export const ui = {
     "perform.orMessageSocials": "Or message us on our socials",
     "perform.sendMaterial": "Want your own show here? Send your photo, clips and the dates you would like, and we will make the flyer and the ads from them.",
     "perform.sendMaterialCta": "Send your photo and clips",
+    "contact.comedianNotice": "Are you a comedian who wants a spot on a show? Don't use this form: send your photo, clips and dates through the comedian sign-up and we will get back to you.",
+    "contact.comedianNoticeCta": "Comedian sign-up",
+    "contact.comedianNoticeOpenMic": "Just want to try the open mic? Reserve a seat on the open mic page.",
 
     "events.calendar": "Calendar",
     "events.title": "Shows",
@@ -472,6 +475,9 @@ export const ui = {
     "perform.orMessageSocials": "O escríbenos en nuestras redes",
     "perform.sendMaterial": "¿Quieres tu propio show aquí? Mándanos tu foto, tus clips y las fechas que te gustarían, y con eso hacemos el flyer y los anuncios.",
     "perform.sendMaterialCta": "Manda tu foto y tus clips",
+    "contact.comedianNotice": "¿Eres comediante y quieres un lugar en un show? No uses este formulario: manda tu foto, tus clips y tus fechas por el registro de comediantes y te respondemos.",
+    "contact.comedianNoticeCta": "Registro de comediantes",
+    "contact.comedianNoticeOpenMic": "¿Solo quieres probar el open mic? Reserva tu lugar en la página del open mic.",
 
     "events.calendar": "Calendario",
     "events.title": "Eventos",

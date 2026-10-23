@@ -54,6 +54,19 @@ const subjectSummary: Record<string, string> = {
       </details>
     </div>
 
+    <aside class="mx-auto max-w-xl rounded-3xl border border-amber-300 bg-amber-50 px-6 py-6 text-center text-neutral-900" role="note">
+      <p>{t(locale, "contact.comedianNotice")}</p>
+      <a
+        class="mt-4 inline-flex min-h-11 items-center justify-center rounded-full bg-neutral-950 px-6 py-3 text-xs font-semibold uppercase tracking-[0.25em] text-white hover:bg-brand-hover"
+        href={`/comic/?lang=${locale}`}
+      >
+        {t(locale, "contact.comedianNoticeCta")}
+      </a>
+      <p class="mt-4 text-sm text-neutral-700">
+        <a class="underline underline-offset-4 hover:text-brand" href={localizePath(locale, "openMic")}>{t(locale, "contact.comedianNoticeOpenMic")}</a>
+      </p>
+    </aside>
+
     {!hasCredentials ? (
       <p class="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-8 text-neutral-950">
         El formulario de consulta se conecta automáticamente una vez que lleguen las credenciales de ticketing.
