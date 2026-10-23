@@ -74,8 +74,8 @@ ansible-playbook deploy.yml --tags all,certs   # also issue missing Let's Encryp
 ansible-playbook email_check.yml               # end-to-end mail verification (asserts on DNS, DKIM, delivery)
 ```
 
-`README.md` at the root is the Kintana starter's and is stale (Kintana hosting, `/shows/` routes); `backend/README.md`
-and `docs/` are current. Read the matching `docs/` page before deploy, mail or Meta work.
+`README.md` (rewritten 2026-10-23) is the public overview; `backend/README.md` and `docs/` are current, except
+`docs/deploy-cloudflare.md` and `docs/deploy-dokploy.md`, which are earlier hosting kept for reference. Read the matching `docs/` page before deploy, mail or Meta work.
 
 Local pairing: backend on `127.0.0.1:8000`, site on `127.0.0.1:4321` with `.env` / `.dev.vars` setting
 `PUBLIC_KINTANA_BASE_URL=http://127.0.0.1:8000` and `PUBLIC_KINTANA_API_KEY` to a key from `config.PUBLIC_API_KEYS`.
