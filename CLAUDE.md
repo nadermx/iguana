@@ -10,6 +10,8 @@ project, which is worth knowing before writing anything into a commit: the histo
 history is not a place you can quietly delete from. Work happens on branch `backend-django`;
 `main` was fast-forwarded to it on 2026-10-23 and carries the backend too, so after pushing the branch run
 `git push origin backend-django:main` to keep them identical.
+`gh`'s active account is not `nadermx`, so repo settings answer 404 unless run as
+`GH_TOKEN=$(gh auth token -u nadermx) gh api ...`.
 🚨 **No customer data, ever, including in a comment or a commit message.** A docstring naming the one
 subscriber address that had bounced twice was caught on the way out on 2026-09-25 and scrubbed with
 `git filter-branch` while the commits were still local. The already-published history was audited at the same
