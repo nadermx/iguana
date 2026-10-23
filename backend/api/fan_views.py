@@ -5,17 +5,17 @@ from urllib.parse import urlencode, urlparse
 from django.conf import settings
 from django.core.mail import send_mail
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import F, Q, Sum
 from django.http import JsonResponse
 from django.utils import timezone
 
 from catalog.models import Event
-from crm.geo import remember_locale
+from crm.geo import LOOPBACK, client_ip, remember_locale
 from crm.models import Contact
 from sales.i18n import locale_from_request, normalize, tr
 from sales.models import CreditTransfer, LoginToken, Membership, MembershipPlan, Order, RedeemCode
 from sales.demand import demand
-from sales.services import (current_membership, member_unit_price, stripe_client, stripe_enabled,
+from sales.services import (clean_email, current_membership, member_unit_price, stripe_client, stripe_enabled,
                             upsert_contact, wallets_available)
 
 from .auth import api_view, error, fan_contact, fan_required, issue_fan_token
@@ -41,16 +41,21 @@ def config(request):
 
 @api_view(methods=('POST',))
 def auth_request(request):
-    email = str(request.json.get('email', '')).strip().lower()
+    email = clean_email(request.json.get('email'))
     redirect_url = str(request.json.get('redirectUrl', '')).strip()
-    if '@' not in email or len(email) > 254:
+    if not email:
         return error('Enter a valid email address')
     if not _allowed_redirect(redirect_url):
         return error('redirectUrl is not an allowed site URL')
-    recent = LoginToken.objects.filter(email=email, created_at__gte=timezone.now() - timedelta(minutes=10)).count()
-    if recent >= 5:
+    now = timezone.now()
+    recent = LoginToken.objects.filter(email=email, created_at__gte=now - timedelta(minutes=10)).count()
+    # Per address alone, one connection could mail every address it liked from our domain (41 in 25 minutes on
+    # 2026-10-23), so the connection is counted too.
+    ip = client_ip(request) or None
+    from_ip = LoginToken.objects.filter(ip=ip, created_at__gte=now - timedelta(hours=1)).count() if ip not in LOOPBACK else 0
+    if recent >= 5 or from_ip >= 10:
         return error('Too many sign-in emails. Try again in a few minutes.', 429)
-    login = LoginToken.objects.create(email=email, code=f'{secrets.randbelow(10**6):06d}')
+    login = LoginToken.objects.create(email=email, code=f'{secrets.randbelow(10**6):06d}', ip=ip)
     link = f'{redirect_url}{"&" if "?" in redirect_url else "?"}{urlencode({"token": login.token})}'
     # The link goes back to /en/... or /es/..., which is the language the person is using the site in.
     lang = normalize(urlparse(redirect_url).path.strip('/').split('/')[0])
@@ -76,6 +81,11 @@ def auth_verify(request):
         if token:
             login = LoginToken.objects.select_for_update().filter(token=token).first()
         elif code and email:
+            # Five tries per code, and asking for a new code every few minutes would otherwise reset the count. Ten
+            # wrong guesses across the address's live codes shut the code door until they expire; the link still works.
+            pending = LoginToken.objects.filter(email=email, used_at__isnull=True, expires_at__gte=now)
+            if (pending.aggregate(n=Sum('attempts'))['n'] or 0) >= 10:
+                return error('That sign-in link or code is invalid or has expired.', 401)
             login = LoginToken.objects.select_for_update().filter(email=email, used_at__isnull=True).order_by('-created_at').first()
             if login:
                 login.attempts += 1

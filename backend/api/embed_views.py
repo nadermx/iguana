@@ -13,7 +13,7 @@ from django.views.decorators.http import require_POST
 
 from catalog.models import Event
 from crm.email_links import remember_click
-from crm.geo import remember_on_contact, visitor_profile
+from crm.geo import LOOPBACK, remember_on_contact, visitor_profile
 from crm.models import Contact, TrackedEvent
 from crm.optin import confirm as confirm_optin
 from crm.optin import email_from_token as email_from_optin_token
@@ -24,7 +24,7 @@ from sales.i18n import lang_from_request, normalize, tr
 from sales.links import order_url
 from sales.reminders import can_release, release
 from sales.models import Membership, MembershipPlan, Order, Ticket
-from sales.services import (DATE_FORMATS, CheckoutError, collects_payment, complete_order, create_order,
+from sales.services import (DATE_FORMATS, CheckoutError, clean_email, collects_payment, complete_order, create_order,
                             current_membership, price_cart, reserve_at_door, stripe_client, stripe_enabled)
 
 from .auth import contact_from_fan_token, error, json_body
@@ -193,8 +193,9 @@ def checkout_start(request, event_id):
         return error(tr(lang, 'Tickets are not on sale for this show.'))
     try:
         body, items, contact = _cart_payload(request)
-        name, email, phone = (str(body.get(k) or '').strip() for k in ('name', 'email', 'phone'))
-        if not name or '@' not in email:
+        name, phone = (body.get(k).strip() if isinstance(body.get(k), str) else '' for k in ('name', 'phone'))
+        email = clean_email(body.get('email'))
+        if not name or not email:
             raise CheckoutError('Enter your name and email.')
         if contact and contact.email != email.lower():
             contact = None  # member pricing only applies to the signed-in member's own email
@@ -210,6 +211,16 @@ def checkout_start(request, event_id):
     # Meta matches a server-side conversion on the browser that made it. The fan is in this iframe, so the header
     # is theirs; `_fbp` and `_fbc` belong to the site origin and arrive in attribution from k.js.
     attribution['userAgent'] = request.headers.get('User-Agent', '')[:500]
+
+    # One email per night stops one person taking a free room, but not one connection with a box of throwaway
+    # addresses: a probe on 2026-10-23 held 39 seats across 23 nights, 8 of them on the next Tuesday. A group books
+    # several seats in one order, so a handful of free bookings per connection is plenty.
+    ip = attribution['visitor'].get('ip')
+    if ip and ip not in LOOPBACK and (cart.total_cents == 0 or any(t.pay_at_door for t, _, _ in cart.lines)):
+        free = Order.objects.filter(status=Order.COMPLETED, stripe_payment_intent_id='', attribution__visitor__ip=ip)
+        if (free.filter(event=event).count() >= 4
+                or free.filter(created_at__gte=timezone.now() - timedelta(days=1)).count() >= 12):
+            return error(tr(lang, 'Too many reservations from this connection. Write to hello@iguanacomedy.com and we will hold your seats.'))
 
     if any(ticket_type.pay_at_door for ticket_type, _, _ in cart.lines):
         try:

@@ -276,6 +276,66 @@ class FanAuthTests(ApiTestCase):
         self.assertIsNone(res['stripePublishableKey'])
 
 
+class ProbeHardeningTests(ApiTestCase):
+    """What an automated probe got past on 2026-10-23, from one address with a box of throwaway inboxes."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.mic = Event.objects.create(name='Open Mic Night - English!', slug='probe-mic', status=Event.ACTIVE,
+                                       venue=cls.venue, currency='usd', members_eligible=False,
+                                       date=timezone.now() + timedelta(days=5), show_time='20:00')
+        cls.seat = TicketType.objects.create(event=cls.mic, name='Free reserved seat', price_cents=0, capacity=80)
+
+    def reserve(self, email, name='Fan', ip='189.203.10.20', event=None, seat=None):
+        body = {'items': {(seat or self.seat).id: 1}, 'name': name, 'email': email}
+        return self.client.post(f'/api/checkout/{(event or self.mic).id}/start', data=json.dumps(body),
+                                content_type='application/json', REMOTE_ADDR='127.0.0.1', HTTP_X_REAL_IP=ip)
+
+    def sign_in_request(self, email, ip='189.203.10.20'):
+        return self.client.post('/api/fan/v1/auth/request', data=json.dumps({'email': email, 'redirectUrl': f'{SITE}/v'}),
+                                content_type='application/json', HTTP_AUTHORIZATION=f'Bearer {KEY}',
+                                REMOTE_ADDR='127.0.0.1', HTTP_X_REAL_IP=ip)
+
+    def test_checkout_refuses_anything_but_one_plain_address(self):
+        for email in ({'equals': 'a@example.com'}, ['a@example.com'], 'a@example.com,b@example.com',
+                      'a@example.com\r\nbcc: b@example.com', 'a..b@example.com'):
+            self.assertEqual(self.reserve(email).status_code, 400, email)
+        self.assertEqual(self.reserve('a@example.com', name={'x': 1}).status_code, 400)
+        self.assertFalse(Order.objects.exists())
+        self.assertFalse(Contact.objects.exists())
+
+    def test_sign_in_refuses_injected_addresses_without_a_500(self):
+        for email in ('a@example.com,b@example.com', 'a@example.com%0abcc:b@example.com', 'a@b.co\r\nbcc: c@d.ee',
+                      {'equals': 'a@example.com'}):
+            self.assertEqual(self.sign_in_request(email).status_code, 400, email)
+        self.assertFalse(LoginToken.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_one_connection_cannot_mail_every_address(self):
+        for n in range(10):
+            self.assertEqual(self.sign_in_request(f'fan{n}@example.com').status_code, 200)
+        self.assertEqual(self.sign_in_request('fan10@example.com').status_code, 429)
+        self.assertEqual(self.sign_in_request('fan10@example.com', ip='200.1.1.1').status_code, 200)
+
+    def test_new_codes_do_not_reset_the_guess_count(self):
+        for _ in range(2):
+            self.sign_in_request('fan@example.com')
+            for _ in range(5):
+                self.api('post', '/api/fan/v1/auth/verify', {'email': 'fan@example.com', 'code': '000000'})
+        self.sign_in_request('fan@example.com')
+        login = LoginToken.objects.filter(email='fan@example.com').latest('created_at')
+        self.assertEqual(self.api('post', '/api/fan/v1/auth/verify', {'email': 'fan@example.com', 'code': login.code}).status_code, 401)
+        # The emailed link is not a guess, so it still signs them in.
+        self.assertEqual(self.api('post', '/api/fan/v1/auth/verify', {'token': login.token}).status_code, 200)
+
+    def test_one_connection_cannot_take_a_free_room(self):
+        for n in range(4):
+            self.assertEqual(self.reserve(f'fan{n}@example.com').status_code, 200)
+        self.assertIn('Too many reservations', self.reserve('fan4@example.com').json()['error'])
+        self.assertEqual(self.reserve('fan4@example.com', ip='200.1.1.1').status_code, 200)
+
+
 class CheckoutTests(ApiTestCase):
     def post(self, path, body):
         return self.client.post(path, data=json.dumps(body), content_type='application/json')

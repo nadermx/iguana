@@ -66,6 +66,8 @@ ES = {
     '{0} is fully booked.': '«{0}» ya está lleno.',
     'You already have a reservation for this night. Check your email for your seats.':
         'Ya tienes una reservación para esta noche. Revisa tu correo para ver tus lugares.',
+    'Too many reservations from this connection. Write to hello@iguanacomedy.com and we will hold your seats.':
+        'Demasiadas reservaciones desde esta conexión. Escríbenos a hello@iguanacomedy.com y te apartamos tus lugares.',
 
     # Order page
     'Your tickets': 'Tus boletos',

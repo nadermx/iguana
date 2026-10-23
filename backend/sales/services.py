@@ -3,7 +3,9 @@ from dataclasses import dataclass, field
 
 import stripe
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.mail import send_mail
+from django.core.validators import validate_email
 from django.db import transaction
 from django.utils import formats, timezone, translation
 
@@ -89,6 +91,20 @@ def current_membership(contact):
         if m.is_current:
             return m
     return None
+
+
+def clean_email(value):
+    """One address as a string, lowercased, or '' when it is not one. A probe on 2026-10-23 sent a JSON object, a
+    list, a comma-separated pair and a CRLF `bcc:` here; `str()` turned the first two into contacts and the rest
+    reached send_mail, which refused them with a 500."""
+    if not isinstance(value, str):
+        return ''
+    email = value.strip().lower()
+    try:
+        validate_email(email)
+    except ValidationError:
+        return ''
+    return email if len(email) <= 254 else ''
 
 
 def upsert_contact(email, source, first_name='', last_name='', phone=''):

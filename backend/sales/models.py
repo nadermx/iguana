@@ -343,4 +343,5 @@ class LoginToken(models.Model):
     expires_at = models.DateTimeField(default=_login_expiry)
     used_at = models.DateTimeField(null=True, blank=True)
     attempts = models.PositiveIntegerField(default=0)
+    ip = models.GenericIPAddressField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
