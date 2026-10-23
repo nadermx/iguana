@@ -7,8 +7,9 @@ Iguana Comedy (stand-up promoter, Quintana Roo, Mexico). Two apps in one repo: a
 Repo is **`nadermx/iguana`** (public), `origin` since 2026-10-23. It used to be `SlaterMarketing/iguana`, which
 now answers 404, so a push there fails with "Repository not found". There is no private repository for this
 project, which is worth knowing before writing anything into a commit: the history is world readable and git
-history is not a place you can quietly delete from. Backend, deploy and migration work lives on branch
-`backend-django`.
+history is not a place you can quietly delete from. Work happens on branch `backend-django`;
+`main` was fast-forwarded to it on 2026-10-23 and carries the backend too, so after pushing the branch run
+`git push origin backend-django:main` to keep them identical.
 🚨 **No customer data, ever, including in a comment or a commit message.** A docstring naming the one
 subscriber address that had bounced twice was caught on the way out on 2026-09-25 and scrubbed with
 `git filter-branch` while the commits were still local. The already-published history was audited at the same
