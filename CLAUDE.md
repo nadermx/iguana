@@ -96,6 +96,13 @@ Auth: the site's key arrives as `Authorization: Bearer` (checked by `api_view` i
 `X-Customer-Authorization: Bearer <signed token>` issued by `auth/verify`. Browser calls rely on
 `api/middleware.py` CORS for `SITE_URLS`.
 
+🚨 **An outside probe worked through checkout and sign-in on 2026-10-23** (one IP, `maxxspace.com` throwaway
+inboxes, `pt<run>` addresses, names like `MassAssign`/`XSS`; the same IP hit best.free and youtgo that night). It
+was NOT us. It held 39 free open mic seats and stored a dict as an email; nothing was taken over. Since then every
+email in passes `sales.services.clean_email`, and sign-in emails (10/IP/hour), code guesses (10 across an address's
+live codes) and free bookings (4 per IP per night, 12 per day) are capped (`api.tests.ProbeHardeningTests`). The IP
+is denied in ufw. If `pentest`/`pt…@` bookings appear again, they are not a test of ours.
+
 🚨 **There is no membership, and nothing may offer member pricing** (owner, 2026-09-24: "we don't have member
 price bullshit anymore"). The plan is inactive, the one membership row ever created is cancelled and belonged
 to a departed colleague, and `0009_alter_event_members_eligible` turned `members_eligible` off on all 51
