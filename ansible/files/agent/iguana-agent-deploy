@@ -44,6 +44,8 @@ while [ $# -gt 0 ]; do
 done
 
 [ "$(id -u)" = 0 ] || { echo "run it with sudo" >&2; exit 2; }
+# sudo keeps the caller's directory, which may be gone or unreadable to iguana; nothing here is relative to it.
+cd /
 exec 9>/run/lock/iguana-deploy.lock
 flock -n 9 || { echo "another deploy is running" >&2; exit 1; }
 
