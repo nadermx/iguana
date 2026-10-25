@@ -35,6 +35,7 @@ node tests/open-mic-e2e.mjs [--base http://127.0.0.1:4321]   # the page the open
 node tests/show-e2e.mjs --slug <slug> --price <MXN>    # a paid show: both languages, listings, checkout up to a LIVE Stripe refusal of 4242
 node tests/comic-e2e.mjs [--submit --email <addr>]    # /comic/ layout 320 to 1280 in both languages; --submit leaves a submission to delete
 API_KEY=... node tests/pos-e2e.mjs                     # the POS; needs its throwaway fixtures (see the POS section)
+node tests/chat-e2e.mjs --pass "$(cat ~/.credentials/vpsorg/iguanacomedy/owner_password)" [--send "Reply pong"]  # /chat/ gate, layout, one real turn
 
 # Offline tests for the operator scripts (no network)
 python3 -m unittest discover -s scripts/tests -v
