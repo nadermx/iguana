@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/python3 /usr/local/lib/iguana-agent/guard.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "DISABLE_AUTOUPDATER": "1"
+  },
+  "cleanupPeriodDays": 3650
+}

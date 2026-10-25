@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'sales',
     'api',
     'pos',
+    'assistant',
 ]
 
 MIDDLEWARE = [

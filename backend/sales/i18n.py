@@ -595,6 +595,28 @@ ES = {
         'Nos llegaron tus fotos, clips y fechas. Vamos a revisar todo y te contactamos por correo o WhatsApp.',
     'We sent you a copy by email. To add or change anything, reply to it.':
         'Te mandamos una copia por correo. Si quieres agregar o cambiar algo, respóndelo.',
+    # /chat/ (api/chat_views.py, templates/embed/chat.html): the owner's chat with the agent that runs the site.
+    'Chat': 'Chat',
+    'Ask for anything on the site: a fix, a new show, a question about bookings. The agent works in its own copy of the code, runs the tests, pushes to GitHub and deploys. It can do anything you could do yourself, so say exactly what you want.':
+        'Pide lo que sea del sitio: un arreglo, un show nuevo, una pregunta sobre las reservas. El agente trabaja en su propia copia del código, corre las pruebas, sube los cambios a GitHub y los publica. Puede hacer todo lo que tú podrías hacer, así que di exactamente lo que quieres.',
+    'Conversation': 'Conversación',
+    'New conversation': 'Conversación nueva',
+    'The agent is busy with another conversation. A new message waits until it finishes.':
+        'El agente está ocupado con otra conversación. Un mensaje nuevo espera hasta que termine.',
+    'What should the agent do?': '¿Qué debe hacer el agente?',
+    'Ctrl+Enter sends': 'Ctrl+Enter envía',
+    'Send': 'Enviar',
+    'Waiting for the agent…': 'Esperando al agente…',
+    'Working…': 'Trabajando…',
+    'Stopped.': 'Detenido.',
+    'Failed': 'Falló',
+    'Stop': 'Detener',
+    '{0} steps': '{0} pasos',
+    'Could not send. Check the connection and try again.': 'No se pudo enviar. Revisa la conexión e inténtalo de nuevo.',
+    'Not allowed': 'No permitido',
+    'Write a message first': 'Escribe un mensaje primero',
+    'That message is too long': 'Ese mensaje es demasiado largo',
+    'Wait for the current reply to finish, or stop it': 'Espera a que termine la respuesta actual, o detenla',
 }
 
 

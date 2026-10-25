@@ -1,0 +1,39 @@
+#!/bin/bash
+# One /chat/ turn: Claude Code, non-interactive, as the `claude` user, in its own checkout of the repo.
+# Installed to /usr/local/bin by ansible/agent.yml; run by `manage.py chat_worker` (as iguana) through
+#   sudo -n -u claude -H /usr/local/bin/iguana-agent-run <session-uuid>     (prompt on stdin, stream-json out)
+#
+# The guardrails are not in here. They are OS level (the claude user has no sudo beyond iguana-manage and
+# iguana-agent-deploy, a read-only database role and no access to config.py or ~/.credentials) and in
+# /etc/claude-code/managed-settings.json, which this user cannot edit and Claude Code ranks above every other
+# settings file.
+set -euo pipefail
+
+session=${1:?session uuid}
+[[ $session =~ ^[0-9a-f-]{36}$ ]] || { echo "bad session id" >&2; exit 2; }
+
+export HOME=/home/claude
+export PATH=/home/claude/.local/bin:/usr/local/bin:/usr/bin:/bin
+export DISABLE_AUTOUPDATER=1
+cd /home/claude/iguana
+
+# `claude setup-token` prints a long-lived token for a subscription; `claude` + /login stores credentials in
+# ~/.claude instead. Either works; the file wins when both exist.
+if [ -s "$HOME/.claude-oauth-token" ]; then
+  CLAUDE_CODE_OAUTH_TOKEN=$(tr -d '[:space:]' < "$HOME/.claude-oauth-token")
+  export CLAUDE_CODE_OAUTH_TOKEN
+fi
+
+# Resume the conversation when Claude Code already has it on disk, start it otherwise. Decided here rather
+# than by the worker, because a first turn that failed before Claude started (not signed in) left no session.
+if compgen -G "$HOME/.claude/projects/*/$session.jsonl" > /dev/null; then
+  which=(--resume "$session")
+else
+  which=(--session-id "$session")
+fi
+
+exec timeout --kill-after=60 3600 claude -p \
+  --output-format stream-json --verbose \
+  --permission-mode bypassPermissions \
+  --append-system-prompt "$(cat /usr/local/lib/iguana-agent/SERVER.md)" \
+  "${which[@]}"

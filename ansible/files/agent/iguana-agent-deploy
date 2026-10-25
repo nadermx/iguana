@@ -1,0 +1,212 @@
+#!/bin/bash
+# Deploy what is on GitHub to the live site, from the server itself. Installed to /usr/local/sbin by
+# ansible/agent.yml; the /chat/ agent runs it as `sudo iguana-agent-deploy` once it has pushed.
+#
+#   iguana-agent-deploy                     deploy origin/backend-django (must equal origin/main)
+#   iguana-agent-deploy --commit <sha>      deploy an older pushed commit: the way back from a bad change
+#   iguana-agent-deploy --skip-tests        emergencies only; logged and said in the email
+#   iguana-agent-deploy --allow-unknown-live  overwrite a live tree that the dev box deployed and never pushed
+#
+# Only PUSHED code can go live this way, so GitHub is always the record of what the site runs. In order:
+#   1. refuse unless it is safe: the live tree is a known pushed commit, the target contains it, main == branch;
+#   2. test in a separate checkout (/var/lib/iguana-deploy/src): backend suite on SQLite, missing migrations,
+#      the operator script tests, the site's i18n and route checks. Nothing live has been touched yet;
+#   3. dump the database to /var/backups/iguana/predeploy/ (kept: the newest 20);
+#   4. the same steps as ansible/deploy.yml's code path: rsync, pip when requirements changed, migrate, HUP
+#      the API straight after migrating, npm ci only when the lockfile changed, build BESIDE the live site and
+#      swap it in, restart the site;
+#   5. check the pages an ad click lands on answer; if they do not, deploy the previous commit again;
+#   6. record the commit in /home/www/iguana/DEPLOYED_COMMIT and email what changed.
+#
+# Infrastructure (nginx, supervisor, cron, config.py, mail) is NOT deployed here; that stays ansible's job
+# from the dev box, and a commit that touches ansible/ says so in the email.
+set -euo pipefail
+
+APP=/home/www/iguana
+WORK=/var/lib/iguana-deploy
+SRC=$WORK/src
+REPO=https://github.com/nadermx/iguana.git
+BRANCH=backend-django
+PRE=/var/backups/iguana/predeploy
+KEEP_PRE=20
+MARKER=$APP/DEPLOYED_COMMIT
+ALERT_TO=${IGUANA_DEPLOY_ALERT:-john@iguanacomedy.com}
+TEST_CONFIG=/usr/local/lib/iguana-agent/test_config.py
+
+commit='' skip_tests=0 allow_unknown=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --commit) commit=${2:?--commit needs a sha}; shift 2 ;;
+    --skip-tests) skip_tests=1; shift ;;
+    --allow-unknown-live) allow_unknown=1; shift ;;
+    *) echo "unknown option $1" >&2; exit 2 ;;
+  esac
+done
+
+[ "$(id -u)" = 0 ] || { echo "run it with sudo" >&2; exit 2; }
+exec 9>/run/lock/iguana-deploy.lock
+flock -n 9 || { echo "another deploy is running" >&2; exit 1; }
+
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+log() { logger -t iguana-agent-deploy -- "$*"; echo "== $*"; }
+die() { logger -t iguana-agent-deploy -p user.err -- "REFUSED: $*"; echo "REFUSED: $*" >&2; exit 1; }
+APP_HOME=$(getent passwd iguana | cut -d: -f6)
+as_app() { runuser -u iguana -- env HOME="$APP_HOME" "$@"; }
+mail_owner() {
+  printf 'Subject: %s\nFrom: "Iguana Comedy" <no-reply@iguanacomedy.com>\nTo: %s\n\n%s\n' "$1" "$ALERT_TO" "$2" \
+    | /usr/sbin/sendmail -f no-reply@iguanacomedy.com "$ALERT_TO" || true
+}
+
+install -d -o iguana -g iguana -m 0755 "$WORK"
+install -d -o root -g iguana -m 0750 "$PRE"
+
+# ------------------------------------------------------------------------------------------- 1. is it safe
+if [ ! -d "$SRC/.git" ]; then
+  as_app git clone --quiet "$REPO" "$SRC"
+fi
+as_app git -C "$SRC" fetch --quiet --prune origin
+head=$(as_app git -C "$SRC" rev-parse "origin/$BRANCH")
+if [ -z "$commit" ]; then
+  target=$head
+  main=$(as_app git -C "$SRC" rev-parse origin/main)
+  [ "$main" = "$target" ] || die "origin/main ($main) is not origin/$BRANCH ($target). Push $BRANCH:main too."
+else
+  target=$(as_app git -C "$SRC" rev-parse --verify "$commit^{commit}") || die "$commit is not a pushed commit"
+  as_app git -C "$SRC" merge-base --is-ancestor "$target" "$head" || die "$commit is not on origin/$BRANCH"
+fi
+
+live=$(awk '{print $1}' "$MARKER" 2>/dev/null || true)
+live_note=$(cut -d' ' -f2- "$MARKER" 2>/dev/null || true)
+if [ -z "$live" ] || ! as_app git -C "$SRC" cat-file -e "$live^{commit}" 2>/dev/null || [[ $live_note == *dirty* ]]; then
+  [ "$allow_unknown" = 1 ] || die "the live site is running code that is not a pushed commit (${live:-no marker}${live_note:+, $live_note}). It was deployed from the dev box; deploying now would erase whatever was not pushed. Ask for it to be pushed, or pass --allow-unknown-live if the owner says to overwrite it."
+  live=''
+fi
+if [ -n "$live" ] && [ -z "$commit" ] && ! as_app git -C "$SRC" merge-base --is-ancestor "$live" "$target"; then
+  die "origin/$BRANCH does not contain what is live ($live). Someone deployed newer code; pull and merge first."
+fi
+if [ "$live" = "$target" ]; then
+  log "already live: $target"; exit 0
+fi
+
+as_app git -C "$SRC" checkout --quiet --force --detach "$target"
+as_app git -C "$SRC" clean -qfdx -e node_modules -e /backend/venv
+log "deploying $target (live: ${live:-unknown})"
+
+# ------------------------------------------------------------------------------------------------- 2. tests
+if [ "$skip_tests" = 0 ]; then
+  [ -x "$WORK/venv/bin/python" ] || as_app python3 -m venv "$WORK/venv"
+  as_app "$WORK/venv/bin/pip" install --quiet --disable-pip-version-check -r "$SRC/backend/requirements.txt"
+  install -o iguana -g iguana -m 0600 "$TEST_CONFIG" "$SRC/backend/config.py"
+  log "backend tests"
+  ( cd "$SRC/backend" && as_app nice timeout 30m "$WORK/venv/bin/python" manage.py test api crm pos assistant --noinput ) \
+    || die "backend tests failed; nothing was deployed"
+  ( cd "$SRC/backend" && as_app "$WORK/venv/bin/python" manage.py makemigrations --check --dry-run >/dev/null ) \
+    || die "a model changed without a migration (run makemigrations and commit it); nothing was deployed"
+  ( cd "$SRC" && as_app python3 -m unittest discover -s scripts/tests >/dev/null 2>&1 ) \
+    || die "scripts/tests failed; nothing was deployed"
+  lock_sum=$(sha1sum "$SRC/package-lock.json" | cut -d' ' -f1)
+  if [ "$(cat "$SRC/node_modules/.iguana-lock-checksum" 2>/dev/null)" != "$lock_sum" ]; then
+    ( cd "$SRC" && as_app npm ci --no-audit --no-fund --silent ) || die "npm ci failed in the test checkout"
+    echo "$lock_sum" | as_app tee "$SRC/node_modules/.iguana-lock-checksum" >/dev/null
+  fi
+  ( cd "$SRC" && as_app node scripts/check-i18n.mjs && as_app node scripts/check-routes.mjs ) \
+    || die "the site's i18n or route check failed; nothing was deployed"
+  log "tests passed"
+else
+  log "TESTS SKIPPED (--skip-tests)"
+fi
+
+# ------------------------------------------------------------------------------------------------ 3. backup
+dump="$PRE/iguana-$ts-${live:0:7}.sql.gz"
+sudo -u postgres pg_dump --no-owner --no-acl iguana | gzip -6 > "$dump.part"
+mv "$dump.part" "$dump"; chown root:iguana "$dump"; chmod 0640 "$dump"; gzip -t "$dump"
+ls -1t "$PRE"/iguana-*.sql.gz | tail -n +$((KEEP_PRE + 1)) | xargs -r rm -f
+log "database saved to $dump"
+
+# ------------------------------------------------------------------------------------------------ 4. deploy
+deploy_tree() {
+  local sha=$1
+  as_app git -C "$SRC" checkout --quiet --force --detach "$sha"
+  as_app git -C "$SRC" clean -qfdx -e node_modules -e /backend/venv -e /backend/config.py
+  as_app rsync -a --delete \
+    --exclude=.git/ --exclude=node_modules/ --exclude=dist/ --exclude=dist.next/ --exclude=dist.old/ \
+    --exclude=.astro/ --exclude=.env --exclude=.dev.vars --exclude=ansible/ --exclude=backend/.venv/ \
+    --exclude=backend/venv/ --exclude=backend/config.py --exclude=backend/db.sqlite3 \
+    --exclude=backend/staticfiles/ --exclude=backend/local_data.json --exclude=__pycache__/ \
+    --exclude=.wrangler/ --exclude=/backend/media --exclude=/DEPLOYED_COMMIT \
+    "$SRC/" "$APP/"
+
+  local restart_api=0 req_sum
+  req_sum=$(sha1sum "$APP/backend/requirements.txt" | cut -d' ' -f1)
+  if [ "$(cat "$APP/backend/venv/.iguana-req-checksum" 2>/dev/null)" != "$req_sum" ]; then
+    as_app "$APP/backend/venv/bin/pip" install --quiet --disable-pip-version-check -r "$APP/backend/requirements.txt"
+    echo "$req_sum" | as_app tee "$APP/backend/venv/.iguana-req-checksum" >/dev/null
+    restart_api=1
+  fi
+  ( cd "$APP/backend" && as_app venv/bin/python manage.py migrate --noinput )
+  ( cd "$APP/backend" && as_app venv/bin/python manage.py collectstatic --noinput >/dev/null )
+  # Straight after the migration, never after the build: see the 2026-09-21 note in deploy.yml.
+  if [ "$restart_api" = 1 ]; then supervisorctl restart iguana:iguana-api; else supervisorctl signal HUP iguana:iguana-api; fi
+
+  local lock_sum
+  lock_sum=$(sha1sum "$APP/package-lock.json" | cut -d' ' -f1)
+  if [ "$(cat "$APP/node_modules/.iguana-lock-checksum" 2>/dev/null)" != "$lock_sum" ]; then
+    ( cd "$APP" && as_app npm ci --no-audit --no-fund --silent )
+    echo "$lock_sum" | as_app tee "$APP/node_modules/.iguana-lock-checksum" >/dev/null
+  fi
+  rm -rf "$APP/dist.next"
+  ( cd "$APP" && as_app env NODE_OPTIONS=--max-old-space-size=1536 ASTRO_OUT_DIR="$APP/dist.next" npm run build:node >/dev/null )
+  [ -f "$APP/dist.next/server/entry.mjs" ] || { echo "the build produced no server" >&2; return 1; }
+  as_app bash -c "rm -rf '$APP/dist.old'; if [ -d '$APP/dist' ]; then mv '$APP/dist' '$APP/dist.old'; fi; mv '$APP/dist.next' '$APP/dist'"
+  supervisorctl restart iguana:iguana-web
+}
+
+# In its own bash, so `set -e` really applies inside it: bash ignores errexit in a function that is called as
+# part of an `&&` list, which is exactly how it is called below.
+run_tree() {
+  APP=$APP SRC=$SRC APP_HOME=$APP_HOME bash -euo pipefail -c "$(declare -f as_app deploy_tree); deploy_tree $1"
+}
+
+healthy() {
+  local url
+  for url in http://127.0.0.1:3000/en/open-mic/ http://127.0.0.1:3000/es/ http://127.0.0.1:3000/en/ \
+             http://127.0.0.1:8001/_t/k.js; do
+    local ok=0
+    for _ in $(seq 1 20); do
+      if curl -fsS -o /dev/null --max-time 10 "$url"; then ok=1; break; fi
+      sleep 2
+    done
+    [ "$ok" = 1 ] || { echo "$url is not answering" >&2; return 1; }
+  done
+}
+
+changes=$( [ -n "$live" ] && as_app git -C "$SRC" log --oneline --no-decorate "$live..$target" || as_app git -C "$SRC" log --oneline -1 "$target")
+infra=$( [ -n "$live" ] && as_app git -C "$SRC" diff --name-only "$live" "$target" -- ansible/ || true)
+
+if run_tree "$target" && healthy; then
+  echo "$target agent $ts" | as_app tee "$MARKER" >/dev/null
+  log "live: $target"
+  note=''
+  [ -n "$infra" ] && note=$'\n\nThis change touches ansible/, which this deploy does not apply. Run ansible-playbook deploy.yml from the dev box for it:\n'"$infra"
+  [ "$skip_tests" = 1 ] && note="$note"$'\n\nTESTS WERE SKIPPED for this deploy.'
+  mail_owner "[iguana] deployed ${target:0:7} from /chat/" "Now live on iguanacomedy.com:
+
+$changes
+
+Database saved first to $dump.$note"
+  exit 0
+fi
+
+log "FAILED, putting ${live:-nothing} back"
+if [ -n "$live" ] && run_tree "$live" && healthy; then
+  echo "$live agent-rollback $ts" | as_app tee "$MARKER" >/dev/null
+  mail_owner "[iguana] deploy of ${target:0:7} FAILED, rolled back" "The new code did not come up, so ${live:0:7} is live again.
+Migrations it ran were not reversed; the database from just before is $dump.
+
+$changes"
+  echo "DEPLOY FAILED and was rolled back to $live. Read journalctl -t iguana-agent-deploy and /var/log/iguana/*.err.log." >&2
+  exit 1
+fi
+mail_owner "[iguana] deploy of ${target:0:7} FAILED and the rollback did not come up" "The site may be down. Database from just before: $dump."
+echo "DEPLOY FAILED AND ROLLBACK FAILED. The site may be down; fix it now." >&2
+exit 1

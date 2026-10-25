@@ -1,0 +1,139 @@
+---
+# The Claude Code instance behind https://iguanacomedy.com/chat/ (docs/chat-agent.md). Imported by deploy.yml;
+# run alone with `ansible-playbook agent.yml`.
+#
+# One-time, by a person, after the first run: sign the `claude` user in to the club's Claude subscription,
+#   ssh -t iguana@38.86.78.36 sudo -iu claude claude      then /login inside it, then /exit
+# (or `claude setup-token` and put the token in /home/claude/.claude-oauth-token, mode 600).
+#
+# What it sets up:
+#   * unix user `claude` with full sudo (the owner wants it able to do anything they can) and a checkout of
+#     github.com/nadermx/iguana that it pushes to over a repo deploy key;
+#   * /etc/claude-code/managed-settings.json + guard.py: the PreToolUse hook that blocks the few irreversible
+#     things (force-push, dropping the database, deleting backups, removing its own guardrails);
+#   * system-wide git hooks that refuse a commit carrying a customer's email or phone, or a secret;
+#   * iguana-agent-run (one chat turn), iguana-manage (manage.py on the live app, logged) and
+#     iguana-agent-deploy (test, back up, deploy pushed code, check, roll back).
+# The chat page and the worker that runs turns are Django (backend/assistant, api/chat_views.py), deployed with
+# the rest of the code; the worker's supervisor program is in files/supervisor.conf.j2.
+
+- hosts: web
+  vars:
+    agent_home: /home/claude
+    agent_checkout: /home/claude/iguana
+    claude_code_version: "2.1.310"
+    github_repo: nadermx/iguana
+  tasks:
+    - name: Agent user
+      become: true
+      user: {name: claude, shell: /bin/bash, home: "{{ agent_home }}", create_home: true, password_lock: true}
+
+    - name: Agent home is private
+      become: true
+      file: {path: "{{ agent_home }}", state: directory, owner: claude, group: claude, mode: "0750"}
+
+    - name: Sudo for the agent, and for the worker to start a turn as the agent
+      become: true
+      copy: {src: files/agent/sudoers, dest: /etc/sudoers.d/iguana-agent, mode: "0440", validate: "visudo -cf %s"}
+
+    - name: Claude Code
+      become: true
+      community.general.npm: {name: "@anthropic-ai/claude-code", version: "{{ claude_code_version }}", global: true}
+
+    # ------------------------------------------------------------------------------------- guardrails
+    - name: Guardrail directories
+      become: true
+      file: {path: "{{ item }}", state: directory, owner: root, group: root, mode: "0755"}
+      loop: [/usr/local/lib/iguana-agent, /usr/local/lib/iguana-agent/git-hooks, /etc/claude-code]
+
+    - name: Guard hook, commit scanner, agent instructions, test config
+      become: true
+      copy: {src: "files/agent/{{ item.src }}", dest: "/usr/local/lib/iguana-agent/{{ item.src }}", owner: root, group: root, mode: "{{ item.mode }}"}
+      loop:
+        - {src: guard.py, mode: "0755"}
+        - {src: pii_scan.py, mode: "0755"}
+        - {src: SERVER.md, mode: "0644"}
+        - {src: test_config.py, mode: "0644"}
+        - {src: git-hooks/pre-commit, mode: "0755"}
+        - {src: git-hooks/commit-msg, mode: "0755"}
+
+    - name: Managed Claude Code settings (outrank every settings file the agent can write)
+      become: true
+      copy: {src: files/agent/managed-settings.json, dest: /etc/claude-code/managed-settings.json, owner: root, group: root, mode: "0644"}
+
+    - name: Commands the agent and the worker run
+      become: true
+      copy: {src: "files/agent/{{ item.name }}", dest: "{{ item.dir }}/{{ item.name }}", owner: root, group: root, mode: "0755"}
+      loop:
+        - {name: iguana-agent-run, dir: /usr/local/bin}
+        - {name: iguana-manage, dir: /usr/local/bin}
+        - {name: iguana-agent-deploy, dir: /usr/local/sbin}
+
+    - name: System git config (hooks on, the agent's identity)
+      become: true
+      community.general.git_config: {scope: system, name: "{{ item.name }}", value: "{{ item.value }}"}
+      loop:
+        - {name: core.hooksPath, value: /usr/local/lib/iguana-agent/git-hooks}
+        - {name: user.name, value: "Iguana Comedy chat agent"}
+        - {name: user.email, value: "hello@iguanacomedy.com"}
+        - {name: pull.ff, value: only}
+
+    # ------------------------------------------------------------------------------------- GitHub
+    - name: Agent's GitHub key
+      become: true
+      become_user: claude
+      command: ssh-keygen -q -t ed25519 -N "" -C "iguana-chat-agent@{{ server_ipv4 }}" -f {{ agent_home }}/.ssh/id_ed25519
+      args: {creates: "{{ agent_home }}/.ssh/id_ed25519"}
+
+    - name: Read the public key
+      become: true
+      slurp: {src: "{{ agent_home }}/.ssh/id_ed25519.pub"}
+      register: agent_pubkey
+
+    - name: GitHub host key
+      become: true
+      become_user: claude
+      shell: ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts && sort -u -o ~/.ssh/known_hosts ~/.ssh/known_hosts
+      args: {creates: "{{ agent_home }}/.ssh/known_hosts"}
+
+    # A deploy key with write access to this one repository, rather than a personal token: it can push here
+    # and nowhere else, and it is revoked in the repo's settings without touching anybody's account.
+    - name: Register it as a write deploy key on the repo (once)
+      delegate_to: localhost
+      become: false
+      shell: |
+        set -euo pipefail
+        export GH_TOKEN=$(gh auth token -u nadermx)
+        key=$(echo '{{ agent_pubkey.content | b64decode | trim }}' | awk '{print $1" "$2}')
+        if gh api repos/{{ github_repo }}/keys --jq '.[].key' | grep -qxF "$key"; then echo present; exit 0; fi
+        gh api repos/{{ github_repo }}/keys -f title="iguana server /chat/ agent" -f key="$key" -F read_only=false >/dev/null
+        echo added
+      args: {executable: /bin/bash}
+      register: deploy_key
+      changed_when: "'added' in deploy_key.stdout"
+
+    - name: Agent's checkout
+      become: true
+      become_user: claude
+      git: {repo: "git@github.com:{{ github_repo }}.git", dest: "{{ agent_checkout }}", version: backend-django, update: false}
+
+    # ------------------------------------------------------------------------------------- what it can use
+    - name: Credentials directories
+      become: true
+      file: {path: "{{ agent_home }}/.credentials/{{ item }}", state: directory, owner: claude, group: claude, mode: "0700"}
+      loop: [meta, meta/iguanacomedy, tiktok, tiktok/iguanacomedy]
+
+    - name: Meta ads token for scripts/meta-*.py
+      become: true
+      copy: {src: ~/.credentials/meta/iguanacomedy/token, dest: "{{ agent_home }}/.credentials/meta/iguanacomedy/token", owner: claude, group: claude, mode: "0600"}
+      no_log: true
+
+    - name: TikTok details
+      become: true
+      copy: {src: "~/.credentials/tiktok/iguanacomedy/{{ item }}", dest: "{{ agent_home }}/.credentials/tiktok/iguanacomedy/{{ item }}", owner: claude, group: claude, mode: "0600"}
+      loop: [advertiser_id, events_api_token, pixel_id, ads_email, ads_password]
+      no_log: true
+
+    - name: Test checkout's work directory for iguana-agent-deploy
+      become: true
+      file: {path: /var/lib/iguana-deploy, state: directory, owner: "{{ deploy_user }}", group: "{{ deploy_user }}", mode: "0755"}

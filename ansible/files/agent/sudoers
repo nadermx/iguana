@@ -1,0 +1,6 @@
+# /chat/ agent (ansible/agent.yml). The owner asked for it to be able to do anything they can, so it has full
+# sudo; the guardrails against irreversible mistakes are the PreToolUse hook in /etc/claude-code and the
+# commit scanner, not this file.
+claude ALL=(ALL) NOPASSWD: ALL
+# The chat worker runs as iguana and starts each turn as claude.
+iguana ALL=(claude) NOPASSWD: /usr/local/bin/iguana-agent-run

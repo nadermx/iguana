@@ -113,6 +113,37 @@
         that: local_media.stat.exists and local_media.stat.isdir and not local_media.stat.islnk
         fail_msg: "media_src {{ media_src }} must be a real directory (pass -e media_src=/path/to/backend/media)"
 
+    # The /chat/ agent (agent.yml) commits on the server and pushes to GitHub, then deploys from GitHub. This
+    # playbook deploys whatever is in THIS checkout, so a checkout that is behind GitHub would quietly take the
+    # agent's work back off the live site. Refuse unless everything pushed is in here (-e allow_behind=true to
+    # override, knowingly).
+    - name: What is on GitHub that this checkout does not have
+      delegate_to: localhost
+      become: false
+      shell: |
+        git -C "{{ repo_root }}" fetch --quiet origin backend-django
+        git -C "{{ repo_root }}" log --oneline HEAD..FETCH_HEAD
+      register: behind
+      changed_when: false
+
+    - name: Refuse to deploy over commits the chat agent pushed
+      assert:
+        that: behind.stdout == '' or (allow_behind | default(false) | bool)
+        fail_msg: "GitHub has commits this checkout lacks (git pull first): {{ behind.stdout_lines }}"
+
+    # The server's record of which commit is live. iguana-agent-deploy reads it and refuses to overwrite a tree
+    # that is not a pushed commit, so uncommitted work deployed from here is never erased by the agent.
+    - name: Which commit this deploy is
+      delegate_to: localhost
+      become: false
+      shell: |
+        sha=$(git -C "{{ repo_root }}" rev-parse HEAD)
+        if [ -n "$(git -C "{{ repo_root }}" status --porcelain --untracked-files=no)" ]; then dirty=' dirty'; fi
+        if ! git -C "{{ repo_root }}" branch -r --contains "$sha" | grep -q .; then dirty="$dirty unpushed"; fi
+        echo "$sha devbox $(date -u +%Y%m%dT%H%M%SZ)$dirty"
+      register: deploying
+      changed_when: false
+
     - name: Sync code and archive media
       ansible.posix.synchronize:
         src: "{{ repo_root }}/"
@@ -137,6 +168,7 @@
           - "--exclude=__pycache__/"
           - "--exclude=.wrangler/"
           - "--exclude=/backend/media"
+          - "--exclude=/DEPLOYED_COMMIT"
 
     - name: Sync media without deleting (admin uploads live only on the server)
       ansible.posix.synchronize:
@@ -552,6 +584,9 @@
         - "http://127.0.0.1:3000/en/open-mic/"
         - "http://127.0.0.1:8001/_t/k.js"
 
+    - name: Record the live commit (the chat worker restarts itself when this changes)
+      copy: {content: "{{ deploying.stdout }}\n", dest: "{{ app_dir }}/DEPLOYED_COMMIT", mode: "0644"}
+
     # ----------------------------------------------------------------- certs
     - name: Obtain certificates (needs DNS pointing here)
       become: true
@@ -584,4 +619,5 @@
       delay: 3
       until: health.status == 200
 
+- import_playbook: agent.yml
 - import_playbook: mail.yml

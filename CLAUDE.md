@@ -59,7 +59,7 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 cp config_example.py config.py   # DEBUG=True, SITE_URLS, PUBLIC_API_KEYS, EMAIL_BACKEND console for local
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py runserver 127.0.0.1:8000
-.venv/bin/python manage.py test api crm pos                                   # all backend tests (api/, crm/, pos/; sales has none of its own)
+.venv/bin/python manage.py test api crm pos assistant                         # all backend tests (sales has none of its own)
 .venv/bin/python manage.py test api.tests.CheckoutTests.test_member_free_tickets_then_guest_discount  # one test
 
 # Data (one-off / re-runnable, fill blanks unless --overwrite)
@@ -76,7 +76,7 @@ ansible-playbook email_check.yml               # end-to-end mail verification (a
 
 `README.md` (rewritten 2026-10-23) is the public overview; `backend/README.md` and `docs/` are current, except
 `docs/deploy-cloudflare.md` and `docs/deploy-dokploy.md`, which are earlier hosting kept for reference. Read the matching `docs/` page before working in that area: `deploy-history`, `mail`, `meta-ads`,
-`tiktok-ads`, `open-mics`, `pos-and-staff-pages`, `comic-and-drop`. CLAUDE.md keeps the rules; the pages keep
+`tiktok-ads`, `open-mics`, `pos-and-staff-pages`, `comic-and-drop`, `chat-agent`. CLAUDE.md keeps the rules; the pages keep
 the history and evidence behind them.
 
 Local pairing: backend on `127.0.0.1:8000`, site on `127.0.0.1:4321` with `.env` / `.dev.vars` setting
@@ -96,6 +96,7 @@ Local pairing: backend on `127.0.0.1:8000`, site on `127.0.0.1:4321` with `.env`
 | `/reservations/`, `/reservas/` | `backend/api/reservations_views.py` |
 | `/stats/`, `/revenue/` | `backend/api/stats_views.py`, `backend/api/revenue_views.py` |
 | `/comic/`, `/drop/` | `backend/api/comic_views.py`, `backend/api/drop_views.py` |
+| `/chat/` (owner's Claude Code agent) | `backend/api/chat_views.py`, `backend/assistant/`, server side `ansible/agent.yml` + `ansible/files/agent/` |
 | `/admin/` | Django admin on `api.iguanacomedy.com` |
 | Prices, orders, demand, reminders | `backend/sales/` (`services.py`, `demand.py`, `reminders.py`, `i18n.py`) |
 | Contacts, mail, ads reporting, geo | `backend/crm/` (`mail.py`, `meta_capi.py`, `tiktok_events.py`, `geo.py`) |
@@ -360,6 +361,20 @@ Detail and evidence: **`docs/mail.md`**. `iguana-mail` on the server reads the l
 - `/drop/` (`api/drop_views.py`): the owner's upload-only document drop behind `drop_pin`, files in
   `/var/lib/iguana/drop`. Never copy any of it into the repo; read it into `~/.credentials/iguanacomedy-business/`
   and delete it from the server once used.
+
+### `/chat/`: a Claude Code instance runs the site too (detail: `docs/chat-agent.md`)
+
+- 🚨 **Production now has TWO deployers.** The owner's agent (unix user `claude` on the VPS) commits, pushes to
+  GitHub and runs `sudo iguana-agent-deploy`. So **`git pull` before working**, and `deploy.yml` refuses when
+  GitHub is ahead of your checkout. `/home/www/iguana/DEPLOYED_COMMIT` says which commit is live and who put it
+  there; deploying uncommitted work marks it `dirty`, and the agent then refuses to deploy over it until it is
+  pushed. Commits by "Iguana Comedy chat agent" are the agent's.
+- The owner wanted it able to do everything (sudo, refunds they name, users, campaigns). The guardrails are
+  only against the irreversible: `ansible/files/agent/guard.py` (managed PreToolUse hook), `pii_scan.py`
+  (system git hooks: no customer email/phone or secret in a commit), and the deploy script's tests, pre-deploy
+  dump and rollback. Tests: `assistant` (Django) and `scripts/tests/test_agent_guards.py`.
+- Infrastructure is still ansible's alone. If the agent changed something live with sudo, its deploy email
+  says so; land the matching `ansible/` change before the next `deploy.yml` undoes it.
 
 ### Data outside the repo
 

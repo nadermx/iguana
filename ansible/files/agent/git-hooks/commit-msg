@@ -1,0 +1,2 @@
+#!/bin/sh
+exec /usr/bin/python3 /usr/local/lib/iguana-agent/pii_scan.py message "$1"

@@ -1,5 +1,5 @@
 [group:{{ projectname }}]
-programs={{ projectname }}-web,{{ projectname }}-api
+programs={{ projectname }}-web,{{ projectname }}-api,{{ projectname }}-chat
 
 [program:{{ projectname }}-web]
 command=/usr/bin/node {{ app_dir }}/dist/server/entry.mjs
@@ -23,3 +23,20 @@ stopasgroup=true
 killasgroup=true
 stdout_logfile=/var/log/{{ projectname }}/api.out.log
 stderr_logfile=/var/log/{{ projectname }}/api.err.log
+
+; /chat/: runs the owner's queued messages through Claude Code as the `claude` user (backend/assistant,
+; ansible/agent.yml). It exits by itself between turns after a deploy, so autorestart brings up the new code;
+; a long stopwaitsecs lets a turn that is mid-deploy be stopped cleanly rather than killed.
+[program:{{ projectname }}-chat]
+command={{ app_dir }}/backend/venv/bin/python manage.py chat_worker
+directory={{ app_dir }}/backend
+user={{ deploy_user }}
+environment=HOME="/home/{{ deploy_user }}"
+autostart=true
+autorestart=true
+startsecs=0
+stopwaitsecs=60
+stopasgroup=true
+killasgroup=true
+stdout_logfile=/var/log/{{ projectname }}/chat.out.log
+stderr_logfile=/var/log/{{ projectname }}/chat.err.log

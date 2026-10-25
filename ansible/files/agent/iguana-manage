@@ -1,0 +1,12 @@
+#!/bin/bash
+# `manage.py` against the LIVE app, as the app user, with the live config. For the /chat/ agent:
+#   iguana-manage setup_open_mics --dry-run
+#   iguana-manage shell -c "from sales.models import Order; print(Order.objects.count())"
+# Every call is logged (journalctl -t iguana-agent-manage), so what the agent did to live data can be read back.
+set -euo pipefail
+logger -t iguana-agent-manage -- "by ${SUDO_USER:-$USER}: $*"
+cd /home/www/iguana/backend
+if [ "$(id -un)" = iguana ]; then
+  exec venv/bin/python manage.py "$@"
+fi
+exec sudo -n -u iguana venv/bin/python manage.py "$@"

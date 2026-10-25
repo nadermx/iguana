@@ -1,0 +1,3 @@
+#!/bin/sh
+# The /chat/ agent's checkout: nothing a customer gave us, and no secret, reaches the public repo.
+exec /usr/bin/python3 /usr/local/lib/iguana-agent/pii_scan.py staged

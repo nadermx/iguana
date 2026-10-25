@@ -1,7 +1,7 @@
 from django.views.generic import RedirectView
 from django.urls import path, re_path
 
-from . import (carta_views, comic_views, door_views, drop_views, embed_views, fan_views, floor_views, inventory_views,
+from . import (carta_views, chat_views, comic_views, door_views, drop_views, embed_views, fan_views, floor_views, inventory_views,
                menu_views, pay_views, public_views, reservations_views, revenue_views, stats_views,
                tables_views)
 
@@ -27,6 +27,11 @@ urlpatterns = [
     path('revenue/', revenue_views.revenue),
     path('reservations/', reservations_views.reservations, name='reservations'),
     path('stats/', stats_views.stats, name='stats'),
+    # The owner's chat with the Claude Code instance that runs the site (docs/chat-agent.md). Superusers only.
+    path('chat/', chat_views.chat, name='chat'),
+    path('chat/send/', chat_views.send, name='chat-send'),
+    path('chat/<int:conversation_id>/turns/', chat_views.turns, name='chat-turns'),
+    path('chat/turn/<int:turn_id>/stop/', chat_views.stop, name='chat-stop'),
     # The bar board and the old console pages moved to the point of sale (pos/) on 2026-09-28.
     path('tables/', RedirectView.as_view(url='/pos/'), name='tables'),
     # The floor console. Spanish only, its own login, and no admin behind it: see `api/floor.py`.
