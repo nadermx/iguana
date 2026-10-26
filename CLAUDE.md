@@ -182,6 +182,8 @@ the club is trading off this site, so nothing of value happens until production 
 code. Anything that genuinely cannot be deployed, such as a Stripe dashboard setting, gets said out loud.
 
 One VPS (VPS.org `free` account, 38.86.78.36, user `iguana`, creds `~/.credentials/vpsorg/iguanacomedy/`).
+Andrew has his own SSH login, `andrew` (sudo, password set by him on first login; created by hand 2026-10-26,
+not in ansible). Remove it with `userdel -r andrew` if he leaves.
 The app is `/home/www/iguana`; the server's venv is **`backend/venv`**, not `.venv` as locally. A one-off query:
 copy a script up and `ansible all --become --become-user iguana -m shell -a "cd /home/www/iguana/backend &&
 venv/bin/python manage.py shell < /tmp/q.py" </dev/null` (without `</dev/null` ansible can abort on a
