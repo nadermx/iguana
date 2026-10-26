@@ -44,6 +44,8 @@
   .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
   .row label { display: flex; gap: 8px; align-items: center; font-weight: 500; font-size: .85rem; }
   .row label input { width: 20px; height: 20px; }
+  .attach { cursor: pointer; border: 1px solid rgba(0,0,0,.2); border-radius: 999px; padding: 8px 14px; background: #fff; }
+  #filelist { flex-basis: 100%; overflow-wrap: anywhere; }
   .row .btn { width: auto; min-width: 140px; padding: 16px 24px; }
 </style>
 {% endblock %}
@@ -68,11 +70,13 @@
 <div id="log" aria-live="polite"></div>
 
 <form class="compose" id="compose">{% csrf_token %}
-  <textarea id="prompt" name="prompt" required placeholder="{% t lang "What should the agent do?" %}"></textarea>
+  <textarea id="prompt" name="prompt" placeholder="{% t lang "What should the agent do?" %}"></textarea>
   <div class="row">
+    <label class="attach">{% t lang "Attach files" %}<input type="file" id="files" multiple hidden></label>
     <span class="note">{% t lang "Ctrl+Enter sends" %}</span>
     <button class="btn" type="submit" id="send">{% t lang "Send" %}</button>
   </div>
+  <p class="note" id="filelist" hidden></p>
   <p class="error" id="formerr" hidden></p>
 </form>
 {{ bootstrap|json_script:"chat-data" }}
@@ -156,24 +160,65 @@
     poll();
   });
 
+  const fileInput = document.getElementById('files');
+  const fileList = document.getElementById('filelist');
+  fileInput.addEventListener('change', () => {
+    const names = Array.from(fileInput.files).map((f) => f.name);
+    fileList.textContent = names.length ? S.files.replace('{0}', names.join(', ')) : '';
+    fileList.hidden = !names.length;
+  });
+
+  // Attachments go up as multipart through XHR, for the progress a phone video needs; text alone is JSON.
+  function upload(text) {
+    return new Promise((resolve, reject) => {
+      const data = new FormData();
+      data.append('prompt', text);
+      if (conversation) data.append('conversation', conversation);
+      Array.from(fileInput.files).forEach((f) => data.append('files', f));
+      const xhr = new XMLHttpRequest();
+      xhr.upload.addEventListener('progress', (e) => {
+        if (!e.lengthComputable) return;
+        fileList.textContent = S.uploading.replace('{0}', Math.min(99, Math.floor(e.loaded / e.total * 100)));
+      });
+      xhr.onload = () => {
+        let body = {};
+        try { body = JSON.parse(xhr.responseText); } catch (err) {}
+        resolve({ok: xhr.status === 200, body});
+      };
+      xhr.onerror = () => reject(new Error(S.send_failed));
+      xhr.open('POST', '/chat/send/');
+      xhr.setRequestHeader('X-CSRFToken', csrf());
+      xhr.send(data);
+    });
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = prompt.value.trim();
-    if (!text) return;
+    const attached = fileInput.files.length > 0;
+    if (!text && !attached) return;
     formErr.hidden = true;
     sendBtn.disabled = true;
     try {
-      const r = await fetch('/chat/send/', {
-        method: 'POST', credentials: 'same-origin',
-        headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
-        body: JSON.stringify({conversation, prompt: text}),
-      });
-      const body = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(body.error || S.send_failed);
+      let ok, body;
+      if (attached) {
+        ({ok, body} = await upload(text));
+      } else {
+        const r = await fetch('/chat/send/', {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+          body: JSON.stringify({conversation, prompt: text}),
+        });
+        ok = r.ok;
+        body = await r.json().catch(() => ({}));
+      }
+      if (!ok) throw new Error(body.error || S.send_failed);
       if (!conversation) history.replaceState(null, '', '?c=' + body.conversation);
       conversation = body.conversation;
       turns.push(body.turn);
       prompt.value = '';
+      fileInput.value = '';
+      fileList.hidden = true;
       render();
       window.scrollTo(0, document.body.scrollHeight);
     } catch (err) {

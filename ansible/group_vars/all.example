@@ -76,6 +76,7 @@ drop_pin: "{{ lookup('file', creds + '/drop_pin') }}"
 drop_dir: /var/lib/iguana/drop
 # /comic/: comedians' photos and clips, one folder per submission. Optional; this is the default.
 comics_dir: /var/lib/iguana/comics
+chat_files_dir: /var/lib/iguana/chat-files
 
 # Clicky analytics through a first-party proxy (https://clicky.com/help/proxy). Paths are random per site.
 clicky_site_id: "101511754"

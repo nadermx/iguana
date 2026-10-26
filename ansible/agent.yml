@@ -134,6 +134,13 @@
       loop: [advertiser_id, events_api_token, pixel_id, ads_email, ads_password]
       no_log: true
 
+    # Files the owner hands the agent: /chat/ attachments and /upload/'s "For the site" (backend/assistant/files.py).
+    # Written by the app (iguana), read by the agent through the group; setgid so every subfolder and file keeps
+    # group claude. The IDs and card on /upload/ stay in drop_dir, which this group cannot read.
+    - name: Folder of files for the agent
+      become: true
+      file: {path: "{{ chat_files_dir | default('/var/lib/iguana/chat-files') }}", state: directory, owner: "{{ deploy_user }}", group: claude, mode: "2750"}
+
     - name: Test checkout's work directory for iguana-agent-deploy
       become: true
       file: {path: /var/lib/iguana-deploy, state: directory, owner: "{{ deploy_user }}", group: "{{ deploy_user }}", mode: "0755"}

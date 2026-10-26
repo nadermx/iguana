@@ -1,10 +1,14 @@
-"""`/drop/`: where the owner uploads the business documents that ad and video account setup asks for.
+"""`/upload/` (also `/drop/`): where the owner uploads the business documents that ad and video account setup asks
+for, and, under "For the site", photos and videos for the /chat/ agent to put on the site.
 
 Upload-only by design. The PIN is short and was sent by email, so nothing behind it may be readable (it holds IDs and the ad billing card): the page
 never lists a file name, never serves a file back, and stores everything in `DROP_DIR`, outside `backend/media`,
 so nginx has no route to it. What the page does show is which items have arrived, so the person uploading can see
 what is still missing. Copies come off the box through ansible. Wrong PINs share the point of sale's lockout
 (`pos.auth`), five per address in fifteen minutes.
+
+"For the site" is the exception to where things go: those files are meant for the agent, so they land in
+`CHAT_FILES_DIR/upload/` (assistant/files.py), which the agent's group can read, and never beside the IDs.
 """
 import hmac
 import json
@@ -18,6 +22,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.utils.text import get_valid_filename
 
+from assistant import files as chat_files
 from pos.auth import clear_failures, locked_out, record_failure
 from sales.i18n import lang_from_request, normalize, tr
 
@@ -25,9 +30,11 @@ log = logging.getLogger(__name__)
 
 SESSION_KEY = 'drop_ok'
 MAX_FILES = 20
+FOR_THE_SITE = 'site'
 
 # (key, label, hint). Labels are English source strings for `tr`; Spanish lives in sales/i18n.py.
 ITEMS = [
+    (FOR_THE_SITE, 'For the site', 'Photos, videos, menus, posters: anything to go on the site. The chat at iguanacomedy.com/chat/ can use them; tell it what they are for.'),
     ('csf', 'Constancia de situación fiscal', 'The PDF from the SAT, issued in the last 3 months. It carries the RFC and razón social.'),
     ('id', "Legal representative's ID", 'INE (both sides) or passport, as photos or a PDF.'),
     ('address', 'Proof of address', 'A utility bill or bank statement at the fiscal address, from the last 3 months.'),
@@ -63,8 +70,14 @@ def _received():
     try:
         names = os.listdir(settings.DROP_DIR)
     except FileNotFoundError:
-        return set()
-    return {name.split('__')[1] for name in names if name.count('__') >= 2}
+        names = []
+    received = {name.split('__')[1] for name in names if name.count('__') >= 2}
+    try:
+        if os.listdir(os.path.join(settings.CHAT_FILES_DIR, 'upload')):
+            received.add(FOR_THE_SITE)
+    except FileNotFoundError:
+        pass
+    return received
 
 
 def _save(kind, uploads, note):
@@ -116,12 +129,18 @@ def drop(request):
             context['error'] = tr(lang, 'Choose what you are sending.')
         elif not uploads and not note:
             context['error'] = tr(lang, 'Add a file or write a note.')
+        elif uploads and chat_files.low_on_disk():
+            log.critical('drop: refusing an upload, the disk is nearly full')
+            context['error'] = tr(lang, 'The server is short of space. Try again later.')
         else:
-            saved = _save(kind, uploads, note)
+            if kind == FOR_THE_SITE:
+                saved = len(chat_files.store(uploads, 'upload', note=note))
+            else:
+                saved = _save(kind, uploads, note)
             log.info('drop: %s item(s) received under %s', saved, kind)
             # Says THAT something arrived and under which heading, never what it is: it goes to a shared inbox.
-            send_mail(f'/drop/: {saved} item(s) received ({kind})',
-                      f'{saved} item(s) were uploaded to iguanacomedy.com/drop/ under "{kind}".\n',
+            send_mail(f'/upload/: {saved} item(s) received ({kind})',
+                      f'{saved} item(s) were uploaded to iguanacomedy.com/upload/ under "{kind}".\n',
                       None, list(settings.NOTIFY_EMAILS), fail_silently=True)
             return redirect(f'{request.path}?lang={lang}&sent={kind}')
 

@@ -9,6 +9,7 @@ the checkout's capacity for as long as the agent works.
 """
 
 import json
+import logging
 
 from django.contrib.auth.decorators import user_passes_test
 from django.http import Http404, JsonResponse
@@ -16,10 +17,14 @@ from django.shortcuts import get_object_or_404, render
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
+from assistant import files as chat_files
 from assistant.models import Conversation, Turn
 from sales.i18n import lang_from_request, tr
 
+log = logging.getLogger(__name__)
+
 MAX_PROMPT = 20000
+MAX_FILES = 20
 
 
 def is_owner(user):
@@ -73,6 +78,8 @@ def chat(request):
         'stop': 'Stop',
         'steps': '{0} steps',
         'send_failed': 'Could not send. Check the connection and try again.',
+        'files': 'Attached: {0}',
+        'uploading': 'Uploading, {0}% done. Keep this page open.',
     }.items()}
     return render(request, 'embed/chat.html', {
         'lang': lang,
@@ -86,21 +93,36 @@ def chat(request):
 @_owner_json
 @require_POST
 def send(request):
-    try:
-        body = json.loads(request.body or b'{}')
-    except ValueError:
-        return JsonResponse({'error': 'Invalid request'}, status=400)
+    """JSON, or multipart when files are attached. Attachments are saved to CHAT_FILES_DIR/chat/<conversation>/
+    and their paths appended to the prompt, so the agent reads them where they are."""
+    if request.content_type == 'multipart/form-data':
+        body, uploads = request.POST, request.FILES.getlist('files')
+    else:
+        try:
+            body = json.loads(request.body or b'{}')
+        except ValueError:
+            return JsonResponse({'error': 'Invalid request'}, status=400)
+        uploads = []
     prompt = str(body.get('prompt') or '').strip()
-    if not prompt:
+    if not prompt and not uploads:
         return JsonResponse({'error': 'Write a message first'}, status=400)
+    if len(uploads) > MAX_FILES:
+        return JsonResponse({'error': 'Attach at most 20 files at a time'}, status=400)
+    if uploads and chat_files.low_on_disk():
+        log.critical('chat: refusing attachments, the disk is nearly full')
+        return JsonResponse({'error': 'The server is short of space. Try again later.'}, status=507)
     if len(prompt) > MAX_PROMPT:
         return JsonResponse({'error': 'That message is too long'}, status=400)
     if body.get('conversation'):
         conversation = get_object_or_404(Conversation, pk=body['conversation'])
     else:
-        conversation = Conversation.objects.create(title=' '.join(prompt.split())[:120], created_by=request.user)
+        title = prompt or ', '.join(u.name for u in uploads)
+        conversation = Conversation.objects.create(title=' '.join(title.split())[:120], created_by=request.user)
     if conversation.turns.filter(status__in=(Turn.QUEUED, Turn.RUNNING)).exists():
         return JsonResponse({'error': 'Wait for the current reply to finish, or stop it'}, status=409)
+    if uploads:
+        saved = chat_files.store(uploads, 'chat', conversation.pk)
+        prompt = (prompt + '\n\n' if prompt else '') + 'Attached files:\n' + chat_files.describe(saved)
     turn = Turn.objects.create(conversation=conversation, prompt=prompt, created_by=request.user)
     conversation.save(update_fields=['updated_at'])
     return JsonResponse({'conversation': conversation.pk, 'turn': _turn(turn)})

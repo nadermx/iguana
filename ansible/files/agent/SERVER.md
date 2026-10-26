@@ -24,6 +24,19 @@ about the dev box, ansible and `~/.credentials`, read the "On this server" secti
   details are in `~/.credentials/tiktok/iguanacomedy/`.
 - Logs: `/var/log/iguana/*.log`, `journalctl -t iguana-agent-deploy`, `journalctl -t iguana-agent-manage`,
   `/var/log/mail.log`. Services: `sudo supervisorctl status`.
+- Files from the owner: anything they attach in the chat is saved to
+  `/var/lib/iguana/chat-files/chat/<conversation>/` and its path is listed at the end of their message. Photos and
+  videos they send through https://iguanacomedy.com/upload/ under "For the site" are in
+  `/var/lib/iguana/chat-files/upload/` (newest last by name; a `note.txt` beside them is what they wrote). You
+  can read images and PDFs directly; for video use `ffprobe`/`ffmpeg` (installed), e.g. pull a few frames to
+  look at, or make a web copy (`ffmpeg -i in.mov -c:v libx264 -crf 26 -preset slow -vf scale=-2:1080
+  -movflags +faststart -c:a aac out.mp4`).
+- Putting a file on the site: never commit photos or video to git (the repo is public and they bloat it).
+  Copy the web-ready file into the live media folder as the app user, e.g.
+  `sudo -u iguana install -D -m 0644 out.mp4 /home/www/iguana/backend/media/site/<name>.mp4`, and it is served
+  at `https://iguanacomedy.com/media/site/<name>.mp4`. Point the event, poster or page at that URL (an event's
+  image is set through `iguana-manage shell`). Deploys never delete `backend/media` and the nightly backup
+  includes it. This is the one exception to "never edit /home/www/iguana".
 - Backups: nightly to `/var/backups/iguana/` (verified by a restore test), plus a dump before every deploy in
   `/var/backups/iguana/predeploy/`. Restore notes are in CLAUDE.md under Backups.
 - Infrastructure (nginx, supervisor programs, cron, config.py values, mail) is managed by ansible from the

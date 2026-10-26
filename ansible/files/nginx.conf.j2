@@ -160,9 +160,14 @@ upstream iguana_api { server 127.0.0.1:8001; }
     location ^~ /scan/        { proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
     {# La lista de reservas, en la dirección corta que se le da al personal. #}
     location = /reservas      { return 301 /reservas/; }
-    # Document uploads for account setup: phone photos of an ID run past the 10m default.
+    {# The owner's uploads: account documents, and photos and videos for the site that the /chat/ agent uses
+       (api/drop_views.py, at /upload/ and its old address /drop/), plus files attached in /chat/ itself. Phone
+       video is big, so these paths take what /comic/ takes; nginx buffers the body to disk first, so a slow
+       upload never holds a gunicorn worker. #}
     location = /drop          { return 301 /drop/; }
-    location ^~ /drop/        { client_max_body_size 60m; proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
+    location = /upload        { return 301 /upload/; }
+    location ~ ^/(drop|upload)/ { client_max_body_size 1700m; client_body_timeout 120s; proxy_send_timeout 120s;
+                                proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
     {# Comedians send their photo and up to three clips (api/comic_views.py): 6 x 25 MB of photos plus 3 x 500 MB
        of video, with room for the form. Only this path takes it. nginx buffers the whole body to disk before
        gunicorn sees a byte, so a slow phone upload never holds one of the three sync workers; the hand-off over
@@ -175,7 +180,8 @@ upstream iguana_api { server 127.0.0.1:8001; }
     location ^~ /reservations/ { proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
     location ^~ /stats/       { proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
     location = /chat          { return 301 /chat/; }
-    location ^~ /chat/        { proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
+    location ^~ /chat/        { client_max_body_size 1700m; client_body_timeout 120s; proxy_send_timeout 120s;
+                                proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
     location ^~ /revenue/     { proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
     location ^~ /admin/       { proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
     {# Django's own CSS and JS, for the admin login those pages redirect to. #}

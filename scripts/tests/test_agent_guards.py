@@ -51,7 +51,8 @@ class GuardTests(unittest.TestCase):
             'sudo ufw disable', 'sudo passwd iguana', 'sudo shutdown -h now', 'crontab -r',
             'sudo rm /etc/claude-code/managed-settings.json', 'echo {} | sudo tee /etc/claude-code/managed-settings.json',
             'sudo sed -i s/x/y/ /usr/local/lib/iguana-agent/guard.py', 'sudo rm /var/backups/iguana/daily/x.sql.gz',
-            'sudo cp x /etc/sudoers.d/claude', 'sudo mv /etc/cron.d/iguana-backup /tmp',
+            'sudo cp x /etc/sudoers.d/claude', 'sudo rm -rf /var/lib/iguana/chat-files',
+            'sudo mv /etc/cron.d/iguana-backup /tmp',
         ):
             self.assertIsNotNone(self.blocked(command), command)
 

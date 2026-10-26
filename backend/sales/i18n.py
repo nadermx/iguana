@@ -457,8 +457,6 @@ ES = {
     'They scan this to pay the whole bill by card': 'Escanean esto para pagar toda la cuenta con tarjeta',
     'Paid by card': 'Pagado con tarjeta',
     # /drop/ (api/drop_views.py)
-    'Documents for Iguana Comedy': 'Documentos para Iguana Comedy',
-    'Documents for account setup': 'Documentos para abrir las cuentas',
     'PIN': 'PIN',
     'Open': 'Abrir',
     'That PIN is not right.': 'Ese PIN no es correcto.',
@@ -473,7 +471,6 @@ ES = {
         'Fotos del frente y del reverso. Cuando cambien la tarjeta, suban la nueva aquí y esa es la que se usa.',
     'What are you sending?': '¿Qué estás enviando?',
     'Choose one': 'Elige uno',
-    'Files (photos or PDFs, up to 60 MB in total)': 'Archivos (fotos o PDF, hasta 60 MB en total)',
     'Note (optional): logins, answers, links': 'Nota (opcional): accesos, respuestas, enlaces',
     'Send': 'Enviar',
     'What is needed': 'Lo que se necesita',
@@ -617,6 +614,16 @@ ES = {
     'Write a message first': 'Escribe un mensaje primero',
     'That message is too long': 'Ese mensaje es demasiado largo',
     'Wait for the current reply to finish, or stop it': 'Espera a que termine la respuesta actual, o detenla',
+    'Attach files': 'Adjuntar archivos',
+    'Attached: {0}': 'Adjuntos: {0}',
+    'Attach at most 20 files at a time': 'Adjunta como máximo 20 archivos a la vez',
+    'The server is short of space. Try again later.': 'Al servidor le falta espacio. Inténtalo más tarde.',
+    # /upload/ (api/drop_views.py): the "For the site" heading and the page's wider purpose
+    'Files for Iguana Comedy': 'Archivos para Iguana Comedy',
+    'For the site': 'Para el sitio',
+    'Photos, videos, menus, posters: anything to go on the site. The chat at iguanacomedy.com/chat/ can use them; tell it what they are for.':
+        'Fotos, videos, menús, carteles: lo que vaya en el sitio. El chat de iguanacomedy.com/chat/ puede usarlos; dile para qué son.',
+    'Files (photos, videos or PDFs, up to 1.5 GB in total)': 'Archivos (fotos, videos o PDF, hasta 1.5 GB en total)',
 }
 
 

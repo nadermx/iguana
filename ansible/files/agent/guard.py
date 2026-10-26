@@ -23,7 +23,8 @@ PROTECTED_PATHS = (
 )
 # Paths whose recursive deletion is never the fix for anything.
 PRECIOUS_TREES = ('/', '/home', '/home/www', '/home/www/iguana', '/home/www/iguana/backend',
-                  '/home/www/iguana/backend/media', '/var/lib/iguana', '/var/backups', '/var/backups/iguana',
+                  '/home/www/iguana/backend/media', '/var/lib/iguana', '/var/lib/iguana/chat-files',
+                  '/var/lib/iguana/drop', '/var/lib/iguana/comics', '/var/backups', '/var/backups/iguana',
                   '/home/claude', '/home/claude/iguana', '/home/claude/iguana/.git', '/etc', '/usr', '/var',
                   '/var/lib/postgresql', '~', '$HOME', '.', '..', '*', '/*')
 

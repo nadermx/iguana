@@ -4534,6 +4534,29 @@ class DropTests(TestCase):
         self._unlock()
         self.assertContains(self.client.get('/drop/'), 'What is needed')
 
+    def test_upload_is_the_same_page(self):
+        self.client.post('/upload/', {'pin': '1357'})
+        self.assertContains(self.client.get('/upload/'), 'name="files"')
+
+    def test_for_the_site_goes_to_the_agent_not_beside_the_ids(self):
+        import os, tempfile
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        agent = tempfile.TemporaryDirectory()
+        self.addCleanup(agent.cleanup)
+        with override_settings(CHAT_FILES_DIR=agent.name):
+            self._unlock()
+            response = self.client.post('/upload/', {
+                'kind': 'site', 'note': 'Hero video for the home page',
+                'files': SimpleUploadedFile('show night.mov', b'\x00\x00\x00\x14ftypqt', 'video/quicktime'),
+            })
+            self.assertEqual(response.status_code, 302)
+            self.assertEqual(os.listdir(self.tmp.name), [])
+            names = sorted(os.listdir(os.path.join(agent.name, 'upload')))
+            self.assertEqual(len(names), 2)
+            self.assertTrue(names[0].endswith('__show_night.mov'))
+            self.assertEqual(os.stat(os.path.join(agent.name, 'upload', names[0])).st_mode & 0o777, 0o640)
+            self.assertContains(self.client.get('/upload/'), 'received')
+
     def test_every_item_has_spanish(self):
         from api.drop_views import ITEMS
         from sales.i18n import ES

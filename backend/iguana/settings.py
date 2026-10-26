@@ -39,6 +39,8 @@ DROP_PIN = getattr(config, 'DROP_PIN', '')
 DROP_DIR = getattr(config, 'DROP_DIR', str(BASE_DIR / 'drop'))
 # /comic/ (api/comic_views.py): comedians' photos and clips, one folder per submission, never served by nginx.
 COMICS_DIR = getattr(config, 'COMICS_DIR', str(BASE_DIR / 'comics'))
+# What the owner hands the /chat/ agent (assistant/files.py): chat attachments and /upload/'s "For the site".
+CHAT_FILES_DIR = getattr(config, 'CHAT_FILES_DIR', str(BASE_DIR / 'chat-files'))
 
 INSTALLED_APPS = [
     'django.contrib.admin',

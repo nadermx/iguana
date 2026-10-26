@@ -96,7 +96,7 @@ Local pairing: backend on `127.0.0.1:8000`, site on `127.0.0.1:4321` with `.env`
 | `/scan/`, `/checkin/<token>/` (the door) | `backend/api/door_views.py`, `backend/api/floor_views.py` |
 | `/reservations/`, `/reservas/` | `backend/api/reservations_views.py` |
 | `/stats/`, `/revenue/` | `backend/api/stats_views.py`, `backend/api/revenue_views.py` |
-| `/comic/`, `/drop/` | `backend/api/comic_views.py`, `backend/api/drop_views.py` |
+| `/comic/`, `/drop/` (also `/upload/`) | `backend/api/comic_views.py`, `backend/api/drop_views.py` |
 | `/chat/` (owner's Claude Code agent) | `backend/api/chat_views.py`, `backend/assistant/`, server side `ansible/agent.yml` + `ansible/files/agent/` |
 | `/admin/` | Django admin on `api.iguanacomedy.com` |
 | Prices, orders, demand, reminders | `backend/sales/` (`services.py`, `demand.py`, `reminders.py`, `i18n.py`) |

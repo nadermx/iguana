@@ -1,7 +1,7 @@
 {% extends "embed/base.html" %}
 {% load showtime %}
 
-{% block title %}{% t lang "Documents for Iguana Comedy" %}{% endblock %}
+{% block title %}{% t lang "Files for Iguana Comedy" %}{% endblock %}
 
 {% block head %}
 <meta name="robots" content="noindex, nofollow">
@@ -18,6 +18,10 @@
     width: 100%; box-sizing: border-box; font: inherit; padding: 10px; min-height: 44px; }
   .drop-form textarea { min-height: 120px; }
   .drop-ok { background: #e7f6ec; border-radius: 10px; padding: 12px 14px; }
+  .progress { display: none; }
+  .progress.on { display: block; }
+  .bar { height: 10px; border-radius: 999px; background: var(--brand-soft); overflow: hidden; }
+  .bar > span { display: block; height: 100%; width: 0; background: var(--brand); transition: width .2s; }
   .drop-err { background: #fdecec; border-radius: 10px; padding: 12px 14px; }
 </style>
 {% endblock %}
@@ -25,7 +29,7 @@
 {% block content %}
 <div class="stack">
   <p class="eyebrow">Iguana Comedy · <a href="?lang={{ other_lang }}">{% if lang == "es" %}English{% else %}Español{% endif %}</a></p>
-  <h1>{% t lang "Documents for account setup" %}</h1>
+  <h1>{% t lang "Files for Iguana Comedy" %}</h1>
 
   {% if error %}<p class="drop-err">{{ error }}</p>{% endif %}
 
@@ -41,18 +45,24 @@
 
     <p class="muted">{% t lang "Files sent here are stored privately and cannot be opened or listed from this page, by you or anyone else." %}</p>
 
-    <form method="post" enctype="multipart/form-data" class="stack drop-form">
+    <form method="post" enctype="multipart/form-data" class="stack drop-form" id="upload"
+          data-uploading="{% t lang "Uploading, {0}% done. Keep this page open." %}"
+          data-failed="{% t lang "The upload did not finish. Check your connection and send it again, or write to hello@iguanacomedy.com." %}">
       {% csrf_token %}
       <label for="kind">{% t lang "What are you sending?" %}</label>
       <select id="kind" name="kind" required>
         <option value="">{% t lang "Choose one" %}</option>
         {% for item in items %}<option value="{{ item.key }}">{{ item.label }}</option>{% endfor %}
       </select>
-      <label for="files">{% t lang "Files (photos or PDFs, up to 60 MB in total)" %}</label>
+      <label for="files">{% t lang "Files (photos, videos or PDFs, up to 1.5 GB in total)" %}</label>
       <input id="files" name="files" type="file" multiple>
       <label for="note">{% t lang "Note (optional): logins, answers, links" %}</label>
       <textarea id="note" name="note"></textarea>
-      <button class="btn" type="submit">{% t lang "Send" %}</button>
+      <div class="progress" id="progress" aria-live="polite">
+        <div class="bar"><span id="bar"></span></div>
+        <p class="muted" id="progress-text"></p>
+      </div>
+      <button class="btn" type="submit" id="send">{% t lang "Send" %}</button>
     </form>
 
     <h2>{% t lang "What is needed" %}</h2>
@@ -70,4 +80,46 @@
     </ul>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  // A video takes minutes from a phone, so show how far it has got. Without XHR the form posts as usual.
+  var form = document.getElementById('upload');
+  if (!form || !window.FormData || !window.XMLHttpRequest) return;
+  var send = document.getElementById('send');
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var xhr = new XMLHttpRequest();
+    var progress = document.getElementById('progress');
+    var bar = document.getElementById('bar');
+    var text = document.getElementById('progress-text');
+    var failed = function () {
+      send.disabled = false;
+      progress.classList.remove('on');
+      text.textContent = '';
+      alert(form.dataset.failed);
+    };
+    send.disabled = true;
+    progress.classList.add('on');
+    xhr.upload.addEventListener('progress', function (e) {
+      if (!e.lengthComputable) return;
+      var pct = Math.min(99, Math.floor(e.loaded / e.total * 100));
+      bar.style.width = pct + '%';
+      text.textContent = form.dataset.uploading.replace('{0}', pct);
+    });
+    xhr.onload = function () {
+      if (xhr.status !== 200) { failed(); return; }
+      // The view answers a good upload with a redirect to ?sent=, which XHR follows; anything else is the page
+      // again with the error on it.
+      if (/[?&]sent=/.test(xhr.responseURL)) { bar.style.width = '100%'; window.location.href = xhr.responseURL; return; }
+      document.open(); document.write(xhr.responseText); document.close();
+    };
+    xhr.onerror = failed;
+    xhr.open('POST', window.location.href);
+    xhr.send(new FormData(form));
+  });
+})();
+</script>
 {% endblock %}

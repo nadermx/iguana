@@ -100,6 +100,55 @@ class ChatFlowTests(TestCase):
         self.assertIsNone(claim_next())
 
 
+class ChatAttachmentTests(TestCase):
+    """Files attached in /chat/ are saved where the agent can read them, and the prompt says where."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = User.objects.create_superuser('owner', 'owner@iguanacomedy.com', 'pw')
+
+    def setUp(self):
+        import tempfile
+        from django.test import override_settings
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        override = override_settings(CHAT_FILES_DIR=self.tmp.name)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.client.force_login(self.owner)
+
+    def test_attachments_are_saved_and_listed_in_the_prompt(self):
+        import os
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        body = self.client.post('/chat/send/', {
+            'prompt': 'Put this menu on the bar page',
+            'files': [SimpleUploadedFile('../menu octubre.pdf', b'%PDF-1.4 x', 'application/pdf'),
+                      SimpleUploadedFile('poster.jpg', b'\xff\xd8\xff', 'image/jpeg')],
+        }).json()
+        turn = Turn.objects.get(pk=body['turn']['id'])
+        folder = os.path.join(self.tmp.name, 'chat', str(body['conversation']))
+        names = sorted(os.listdir(folder))
+        self.assertEqual(len(names), 2)
+        self.assertTrue(turn.prompt.startswith('Put this menu on the bar page\n\nAttached files:\n'))
+        for name in names:
+            self.assertIn(os.path.join(folder, name), turn.prompt)
+            self.assertNotIn('/', name)
+
+    def test_files_alone_are_a_message(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        body = self.client.post('/chat/send/', {'files': SimpleUploadedFile('clip.mp4', b'x', 'video/mp4')}).json()
+        self.assertEqual(Conversation.objects.get(pk=body['conversation']).title, 'clip.mp4')
+        self.assertIn('Attached files:', Turn.objects.get(pk=body['turn']['id']).prompt)
+
+    def test_signed_out_cannot_attach(self):
+        import os
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.client.logout()
+        response = self.client.post('/chat/send/', {'files': SimpleUploadedFile('x.pdf', b'x')})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(os.listdir(self.tmp.name), [])
+
+
 class RunnerTests(TestCase):
     def setUp(self):
         self.command = [sys.executable, '-c', FAKE_AGENT]

@@ -52,6 +52,7 @@ urlpatterns = [
     # it. /mesas/puerta/ stays for the tablets that already have it bookmarked.
     path('scan/', door_views.door, name='floor-scan'),
     path('drop/', drop_views.drop, name='drop'),
+    path('upload/', drop_views.drop, name='upload'),  # the short address given to the owner
     # Comedians send their photo, clips and the dates they want (api/comic_views.py).
     path('comic/', comic_views.comic, name='comic'),
     path('comic/thanks/', comic_views.thanks, name='comic-thanks'),

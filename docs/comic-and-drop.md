@@ -27,7 +27,7 @@ buffers it to disk, so the three sync workers are never held by a slow phone.
 
 ## `/drop/`: the owner's documents for ad and video account setup
 
-`iguanacomedy.com/drop/` takes uploads (tax papers, IDs, logins for Google Ads, TikTok and YouTube setup) behind a
+`iguanacomedy.com/upload/` (also `/drop/`, the same page) takes uploads (tax papers, IDs, logins for Google Ads, TikTok and YouTube setup) behind a
 PIN (`drop_pin` in the creds folder; it was emailed to hello@, so treat it as known). Files land in `drop_dir`
 (`/var/lib/iguana/drop`, 0700, files 0600), never under `backend/media`, and **the page is upload-only**: it shows
 which headings have arrived and never a file name, a list or a download. It also takes photos of the ad billing card
