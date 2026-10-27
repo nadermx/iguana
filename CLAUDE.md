@@ -363,7 +363,9 @@ Detail and evidence: **`docs/mail.md`**. `iguana-mail` on the server reads the l
   prints them.
 - `/drop/` (`api/drop_views.py`): the owner's upload-only document drop behind `drop_pin`, files in
   `/var/lib/iguana/drop`. Never copy any of it into the repo; read it into `~/.credentials/iguanacomedy-business/`
-  and delete it from the server once used.
+  and delete it from the server once used. `/upload/` is the same view (the address given to the owner). Its
+  "For the site" heading is the exception: those photos and videos (up to 1.5 GB, nginx limit on these paths) go
+  to `/var/lib/iguana/chat-files/upload/` for the `/chat/` agent, not beside the IDs (`assistant/files.py`).
 
 ### `/chat/`: a Claude Code instance runs the site too (detail: `docs/chat-agent.md`)
 
@@ -376,6 +378,9 @@ Detail and evidence: **`docs/mail.md`**. `iguana-mail` on the server reads the l
   only against the irreversible: `ansible/files/agent/guard.py` (managed PreToolUse hook), `pii_scan.py`
   (system git hooks: no customer email/phone or secret in a commit), and the deploy script's tests, pre-deploy
   dump and rollback. Tests: `assistant` (Django) and `scripts/tests/test_agent_guards.py`.
+- Files the owner attaches in `/chat/` land in `/var/lib/iguana/chat-files/chat/<conversation>/` (setgid group
+  `claude`, so the agent reads them without sudo) and their paths are appended to the prompt. Media the agent
+  publishes goes into the live `backend/media/`, never into git.
 - Infrastructure is still ansible's alone. If the agent changed something live with sudo, its deploy email
   says so; land the matching `ansible/` change before the next `deploy.yml` undoes it.
 
