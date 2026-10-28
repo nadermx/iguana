@@ -140,7 +140,8 @@ NIGHTS = {
         # at 100 rather than cut: 26 MXN a reservation is still well under this account's historic 55 to 220.
         # Plus the 20 the reach ad set gave back when it was retired.
         # 2026-10-15: live was 200; +25% to 250 with the three-day window, as for Spanish.
-        'daily_conversions': 25000,
+        # 2026-10-28: 600 at the owner's yes, with the night at 10 of 80 seats on the show day.
+        'daily_conversions': 60000,
         'daily_reach': 2000,
         'videos': ['openmic-en-long-9x16.mp4'],
         'image': 'openmic-en-flyer-4x5.jpg',
