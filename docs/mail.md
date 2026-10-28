@@ -16,6 +16,22 @@ NOTHING and a check reported the mailbox as a clean channel.** An unread channel
 now puts `deploy_user` in `mail` and sets the boxes 0640. Reading it is what found the Stripe "acción
 requerida" thread and the performer enquiry that had waited a month.
 
+## Forwards and SRS (2026-10-28)
+
+Forwarded copies to the Gmail inboxes in `mail_forwards` were landing in spam. Each forward kept its original
+envelope sender (`bounce.stripe.com`, `amazonses.com` for the phone-leash SMS relay, `mail.anthropic.com`), so
+Gmail saw our IP sending for domains whose SPF does not list it, and SPF failed on every forward. `mail.yml` now
+runs `postsrsd`: a foreign envelope sender becomes `SRS0=...@iguanacomedy.com` (SPF passes), and a bounce to that
+address is turned back into the original sender. Our own zones are excluded, so mail we send is unchanged. Test:
+`postmap -q x@stripe.com tcp:127.0.0.1:10001` prints an SRS0 address, and `grep SRS0 /var/log/mail.log` shows it
+on real forwards. The original DKIM signatures survive the forward (Postfix does not touch the body), so DMARC
+still passes on the original domain. OpenARC is not packaged for Ubuntu 24.04, so there is no ARC seal.
+
+Spam that reaches `hello@` is forwarded too and still hurts the forward's standing at Gmail (one forward was
+refused `5.7.1 likely unsolicited` on 2026-10-28). If forwards keep landing in spam, the next step is a content
+filter before forwarding, or a Gmail filter on the receiving side: `to:(hello@iguanacomedy.com)`, Never send it
+to Spam.
+
 ## Sign-up bots and the double opt-in
 
 🚨 **Every newsletter sign-up this site had ever received was ONE BOT, and nothing about the requests could

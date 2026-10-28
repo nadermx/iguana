@@ -16,6 +16,29 @@
         state: present
       environment: {DEBIAN_FRONTEND: noninteractive}
 
+    # SRS for the forwards. Without it a forwarded message keeps its original envelope sender (stripe.com,
+    # amazonses.com for the phone-leash SMS relay), and Gmail sees our IP sending for a domain whose SPF does
+    # not list it: SPF fails on every forward, and the forwards were landing in spam (owner, 2026-10-28).
+    # postsrsd rewrites a foreign envelope sender to SRS0=...@iguanacomedy.com, whose SPF does pass, and turns
+    # bounces to that address back into the original sender. Our own zones are excluded, so mail we send is
+    # untouched.
+    - name: postsrsd package
+      apt: {pkg: postsrsd, state: present}
+      environment: {DEBIAN_FRONTEND: noninteractive}
+
+    - name: postsrsd settings
+      lineinfile:
+        path: /etc/default/postsrsd
+        regexp: "^#?\\s*{{ item.key }}="
+        line: "{{ item.key }}={{ item.value }}"
+      loop:
+        - {key: SRS_DOMAIN, value: "{{ site_domain }}"}
+        - {key: SRS_EXCLUDE_DOMAINS, value: "{{ (mail_zones + [mail_domain]) | join(',') }}"}
+      register: srs_conf
+
+    - name: postsrsd running
+      service: {name: postsrsd, state: "{{ 'restarted' if srs_conf.changed else 'started' }}", enabled: true}
+
     - name: Local mailbox users (no login shell)
       user: {name: "{{ item }}", system: true, shell: /usr/sbin/nologin, home: "/var/lib/{{ item }}", create_home: true}
       loop: [inbox, dmarc]
@@ -116,6 +139,10 @@
         - "disable_vrfy_command = yes"
         - "message_size_limit = 26214400"
         - "header_checks = regexp:/etc/postfix/header_checks"
+        - "sender_canonical_maps = tcp:127.0.0.1:10001"
+        - "sender_canonical_classes = envelope_sender"
+        - "recipient_canonical_maps = tcp:127.0.0.1:10002"
+        - "recipient_canonical_classes = envelope_recipient, header_recipient"
         - "milter_default_action = accept"
         - "milter_protocol = 6"
         - "smtpd_milters = inet:127.0.0.1:8891"

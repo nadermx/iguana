@@ -219,7 +219,8 @@ pointing at Cloudflare IPs caused the old Error 1000); `iguanacomedy.mx` 301s to
   `iguanacomedy.com`, each with its own DKIM key under selector `mail`), one mail host `mail.iguanacomedy.mx`
   because the PTR points there. `mail_human_aliases` (hello, info, bills, andrew, john, will, will.slater) deliver to the local
   `inbox` user **and** forward to `mail_forwards`; role/DSN addresses deliver locally only; no catch-all, so
-  anything else is rejected at RCPT. 38.86.78.0/24 is on the Spamhaus PBL, so Postfix prefers IPv6 (Gmail
+  anything else is rejected at RCPT. Forwards go out through `postsrsd` (SRS) so they pass SPF at Gmail; without it they
+  landed in spam (2026-10-28, `docs/mail.md`). 38.86.78.0/24 is on the Spamhaus PBL, so Postfix prefers IPv6 (Gmail
   rejects the v4 address).
 
 **The deploy is shaped by incidents** (`docs/deploy-history.md`), so keep these:
