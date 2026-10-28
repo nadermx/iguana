@@ -1,0 +1,115 @@
+{% load showtime %}{% with v=r.v %}
+<section class="vid" id="v-{{ v.pk }}">
+  {% if v.status == "ready" %}
+    <video controls preload="none" playsinline{% if r.poster %} poster="{{ r.poster }}"{% endif %} src="{{ r.url }}"></video>
+  {% elif v.status == "failed" %}
+    <p class="bad">{% t lang "This video could not be converted for the web." %}
+{{ v.error|truncatechars:400 }}</p>
+  {% else %}
+    <p class="wait">{% t lang "Making the web version. Long videos take a few minutes." %}</p>
+  {% endif %}
+  <p class="meta">
+    {% if v.published and v.status == "ready" %}<span class="live">{% t lang "On the site" %}</span>{% else %}<span class="off">{% t lang "Not on the site" %}</span>{% endif %}
+    {% if v.kind == "short" %}<span class="kind">{% t lang "Short clip" %}</span>{% elif v.kind == "long" %}<span class="kind">{% t lang "Long clip" %}</span>{% elif v.kind == "edit" %}<span class="kind">{% t lang "AI edit" %}</span>{% endif %}
+    {{ v.original_name }} · {{ r.size_mb }} MB{% if r.length %} · {{ r.length }}{% endif %}{% if r.trimmed %} · {{ r.trimmed }}{% endif %}
+    {% if v.status == "ready" %} · <a href="{{ r.url }}" target="_blank" rel="noopener">{% t lang "Open" %}</a> · <a href="{{ r.url }}" download>{% t lang "Download" %}</a>{% endif %}
+    {% if v.parent %} · {% t lang "from" %} <a href="#v-{{ v.parent_id }}">{{ v.parent }}</a>{% endif %}
+  </p>
+
+  {% if v.kind == "upload" %}
+    {% if r.job %}
+      <p class="job{% if r.job.status == "failed" %} failed{% endif %}">
+        {% if r.job.status == "queued" or r.job.status == "running" %}{% t lang "AI clips:" %} {{ r.job.step|default:"…" }}
+        {% elif r.job.status == "done" %}{% t lang "AI clips: {0} made, below by comedian." r.job.clips_made %}{% if r.job.summary %}<br>{{ r.job.summary }}{% endif %}
+        {% else %}{% t lang "AI clips failed:" %} {{ r.job.error|truncatechars:300 }}{% endif %}
+      </p>
+    {% endif %}
+    {% if v.status == "ready" and r.job.status != "queued" and r.job.status != "running" %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="id" value="{{ v.pk }}"><input type="hidden" name="action" value="clips">
+      <button class="btn small" type="submit">{% if r.job %}{% t lang "Make clips with AI again" %}{% else %}{% t lang "Make clips with AI" %}{% endif %}</button>
+    </form>
+    {% endif %}
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="id" value="{{ v.pk }}"><input type="hidden" name="action" value="save">
+    <label for="t-{{ v.pk }}">{% t lang "Title (English)" %}</label>
+    <input type="text" id="t-{{ v.pk }}" name="title" value="{{ v.title }}" maxlength="160">
+    <label for="te-{{ v.pk }}">{% t lang "Title (Spanish)" %}</label>
+    <input type="text" id="te-{{ v.pk }}" name="title_es" value="{{ v.title_es }}" maxlength="160">
+    <div class="row">
+      <label class="check"><input type="checkbox" name="published"{% if v.published %} checked{% endif %}> {% t lang "Show on the site" %}</label>
+      <div><label for="p-{{ v.pk }}">{% t lang "Order (lower first)" %}</label>
+        <input type="number" id="p-{{ v.pk }}" name="position" value="{{ v.position }}"></div>
+    </div>
+    <button class="btn small" type="submit">{% t lang "Save" %}</button>
+  </form>
+
+  <details{% if r.turns %} open{% endif %}>
+    <summary>{% t lang "Edit with AI" %}</summary>
+    {% for turn in r.turns %}
+      <div class="ai-turn">
+        <div class="asked">{{ turn.asked }}</div>
+        {% if turn.status == "queued" or turn.status == "running" %}<div class="reply muted">{% t lang "Working…" %}</div>
+        {% elif turn.reply %}<div class="reply">{{ turn.reply }}</div>
+        {% elif turn.error %}<div class="reply">{{ turn.error|truncatechars:300 }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="id" value="{{ v.pk }}"><input type="hidden" name="action" value="ai">
+      <label for="ai-{{ v.pk }}">{% t lang "Tell the AI what to change" %}</label>
+      <textarea id="ai-{{ v.pk }}" name="instruction" maxlength="4000" placeholder="{% t lang "For example: cut out 0:40 to 0:55, make it vertical, add the comedian's name at the start" %}"></textarea>
+      <button class="btn small" type="submit">{% t lang "Send" %}</button>
+    </form>
+    {% if v.conversation_id %}<p class="muted"><a href="/chat/?c={{ v.conversation_id }}">{% t lang "Open this video's whole chat" %}</a></p>{% endif %}
+  </details>
+
+  <details>
+    <summary>{% t lang "Trim" %}</summary>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="id" value="{{ v.pk }}"><input type="hidden" name="action" value="trim">
+      <p class="muted">{% t lang "Keep only the part between these times, for example 0:12 and 1:45. Leave one empty to keep from the start or to the end. The original is never changed." %}</p>
+      <div class="row">
+        <div><label for="s-{{ v.pk }}">{% t lang "Start" %}</label><input type="text" id="s-{{ v.pk }}" name="start" value="{{ r.start }}" inputmode="decimal" placeholder="0:00"></div>
+        <div><label for="e-{{ v.pk }}">{% t lang "End" %}</label><input type="text" id="e-{{ v.pk }}" name="end" value="{{ r.end }}" inputmode="decimal" placeholder="{{ r.length }}"></div>
+      </div>
+      <button class="btn small" type="submit">{% t lang "Trim" %}</button>
+    </form>
+    {% if r.start or r.end %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="id" value="{{ v.pk }}"><input type="hidden" name="action" value="untrim">
+      <button class="btn small" type="submit">{% t lang "Use the full video again" %}</button>
+    </form>
+    {% endif %}
+  </details>
+
+  <details>
+    <summary>{% t lang "More" %}</summary>
+    {% if v.status == "failed" %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="id" value="{{ v.pk }}"><input type="hidden" name="action" value="retry">
+      <button class="btn small" type="submit">{% t lang "Try again" %}</button>
+    </form>
+    {% endif %}
+    {% if v.kind == "upload" and r.job.clips_made %}
+    <form method="post" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{% t lang "Delete every AI clip made from this video?" %}">
+      {% csrf_token %}
+      <input type="hidden" name="id" value="{{ v.pk }}"><input type="hidden" name="action" value="delete_clips">
+      <button class="btn small danger" type="submit">{% t lang "Delete this video's clips" %}</button>
+    </form>
+    {% endif %}
+    <form method="post" onsubmit="return confirm(this.dataset.confirm)" data-confirm="{% t lang "Delete this video? It comes off the site and out of this list." %}">
+      {% csrf_token %}
+      <input type="hidden" name="id" value="{{ v.pk }}"><input type="hidden" name="action" value="delete">
+      <button class="btn small danger" type="submit">{% t lang "Delete" %}</button>
+    </form>
+  </details>
+</section>
+{% endwith %}

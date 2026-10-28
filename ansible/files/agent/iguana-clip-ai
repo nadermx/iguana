@@ -1,0 +1,23 @@
+#!/bin/bash
+# The clip finder's AI step (backend/catalog/clips.py), run as `claude` so it uses the club's own Claude account,
+# the same sign-in as /chat/. Reads the prompt on stdin, prints Claude Code's JSON result on stdout.
+#
+# Unlike /chat/ it gets no shell and no write tools: Read only (to look at the frames the job extracted, to tell
+# one comedian from the next), so a transcript full of strangers' words cannot steer it into doing anything.
+#   sudo -u claude /usr/local/bin/iguana-clip-ai <work dir> < prompt.txt
+set -euo pipefail
+
+work=${1:?work dir}
+case "$work" in /var/lib/iguana/chat-files/clips-work/*) ;; *) echo "bad work dir" >&2; exit 2;; esac
+[ -d "$work" ] || { echo "no work dir" >&2; exit 2; }
+
+export HOME=/home/claude
+export PATH=/home/claude/.local/bin:/usr/local/bin:/usr/bin:/bin
+export DISABLE_AUTOUPDATER=1
+if [ -s "$HOME/.claude-oauth-token" ]; then
+  CLAUDE_CODE_OAUTH_TOKEN=$(tr -d '[:space:]' < "$HOME/.claude-oauth-token")
+  export CLAUDE_CODE_OAUTH_TOKEN
+fi
+
+cd "$work"
+exec timeout 45m claude --tools Read --allowedTools Read --permission-mode dontAsk --output-format json -p

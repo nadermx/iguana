@@ -177,3 +177,134 @@ class ProcessTests(Dirs):
         self.assertAlmostEqual(video.duration, 2, delta=0.3)
         self.assertFalse(os.path.exists(os.path.join(self.site, first)))
         self.assertTrue(os.path.exists(source))
+
+
+class ClipFinderTests(Dirs):
+    """The AI picks; this code checks what it picked, cuts it, and files each clip under its comedian."""
+
+    def test_clean_clips_drops_bad_lengths_overlaps_and_garbage(self):
+        from catalog.clips import clean_clips
+        answer = {'clips': [
+            {'kind': 'short', 'start': 10, 'end': 40, 'comedian': 'Ana', 'title': 'A'},
+            {'kind': 'short', 'start': 30, 'end': 50, 'comedian': 'Ana'},           # overlaps the first short
+            {'kind': 'short', 'start': 100, 'end': 103},                             # too short
+            {'kind': 'long', 'start': 10, 'end': 200, 'comedian': 'Ana'},           # a long may contain a short
+            {'kind': 'short', 'start': 'soon', 'end': 9},
+            {'kind': 'short', 'start': 250, 'end': 290},                             # clamped to the end: 250-280
+        ]}
+        kept = clean_clips(answer, 280)
+        self.assertEqual([(c['kind'], c['start'], c['end']) for c in kept],
+                         [('short', 10, 40), ('long', 10, 200), ('short', 250, 280)])
+
+    def test_parse_ai_reads_the_json_out_of_claudes_answer(self):
+        from catalog.clips import parse_ai
+        out = json.dumps({'result': 'Here you go:\n{"summary": "s", "clips": []}\nDone.'})
+        self.assertEqual(parse_ai(out), {'summary': 's', 'clips': []})
+        with self.assertRaises(RuntimeError):
+            parse_ai(json.dumps({'result': 'no json here'}))
+        with self.assertRaises(RuntimeError):
+            parse_ai(json.dumps({'is_error': True, 'result': 'usage limit'}))
+
+    def test_find_laughs_marks_a_loud_gap_after_speech(self):
+        from catalog.clips import WINDOW, find_laughs
+        talk = lambda a, b: [{'start': a + i * 0.5, 'end': a + i * 0.5 + 0.4, 'word': 'w'} for i in range(int((b - a) * 2))]
+        words = talk(0, 10) + talk(13, 18)  # speech, a laugh from 10 to 13, speech again
+        levels = [-25.0] * int(10 / WINDOW) + [-18.0] * int(3 / WINDOW) + [-25.0] * int(5 / WINDOW)
+        laughs = find_laughs(words, levels)
+        self.assertEqual(len([l for l in laughs if l['start'] >= 9.5 and l['end'] <= 13.1]), 1)
+        self.assertEqual(laughs[0]['size'], 'BIG')
+
+    @unittest.skipUnless(shutil.which('ffmpeg'), 'ffmpeg is not installed')
+    def test_a_job_cuts_vertical_shorts_and_long_clips_by_comedian(self):
+        from unittest.mock import patch
+        from catalog import clips
+        from catalog.models import ClipJob
+        os.makedirs(self.chat)
+        source = os.path.join(self.chat, 'show.mp4')
+        subprocess.run(['ffmpeg', '-nostdin', '-y', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc=size=640x360:rate=10',
+                        '-f', 'lavfi', '-i', 'sine', '-t', '100', '-c:v', 'libx264', '-preset', 'ultrafast', '-c:a', 'aac',
+                        source], check=True)
+        show = SiteVideo.objects.create(source=source, original_name='show.mp4', status=SiteVideo.READY, duration=100)
+        job = ClipJob.objects.create(video=show)
+        words = [{'start': i * 0.4, 'end': i * 0.4 + 0.3, 'word': f'word{i}'} for i in range(240)]
+        answer = {'summary': 'Ana then Ben.', 'comedians': [{'name': 'Ana', 'start': 0, 'end': 50}],
+                  'clips': [{'kind': 'short', 'comedian': 'Ana', 'start': 5, 'end': 25, 'title': 'Bit', 'title_es': 'Chiste'},
+                            {'kind': 'long', 'comedian': 'Ben', 'start': 30, 'end': 95, 'title': 'Set'}]}
+        with patch.object(clips, 'transcribe', return_value=(words, 'en')), \
+                patch.object(clips, 'ask_ai', return_value=answer) as ask:
+            clips.run(job)
+        job.refresh_from_db()
+        self.assertEqual((job.status, job.clips_made, job.summary), (ClipJob.DONE, 2, 'Ana then Ben.'), job.error)
+        self.assertIn('word10', ask.call_args[0][1])
+        short = SiteVideo.objects.get(kind=SiteVideo.SHORT)
+        self.assertEqual((short.comedian, short.title_es, short.parent, short.published), ('Ana', 'Chiste', show, False))
+        probe = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0',
+                                short.source], capture_output=True, text=True).stdout
+        self.assertIn('1080,1920', probe)
+        self.assertEqual(SiteVideo.objects.get(kind=SiteVideo.LONG).comedian, 'Ben')
+        self.assertTrue(os.path.exists(os.path.join(self.chat, 'clips-work', str(job.pk), 'transcript.txt')))
+        self.assertFalse(os.path.exists(os.path.join(self.chat, 'clips-work', str(job.pk), 'frames')))
+
+
+class VideoAiTests(Dirs):
+    def setUp(self):
+        super().setUp()
+        self.owner = User.objects.create_superuser('owner', 'owner@iguanacomedy.com', 'pw')
+        self.client.force_login(self.owner)
+        self.video = SiteVideo.objects.create(source=os.path.join(self.chat, 'v.mov'), original_name='v.mov', title='Set')
+
+    def test_clips_only_once_the_video_is_ready_and_one_job_at_a_time(self):
+        from catalog.models import ClipJob
+        self.client.post('/videos/', {'id': self.video.pk, 'action': 'clips'})
+        self.assertFalse(ClipJob.objects.exists())
+        SiteVideo.objects.filter(pk=self.video.pk).update(status=SiteVideo.READY)
+        self.client.post('/videos/', {'id': self.video.pk, 'action': 'clips'})
+        self.client.post('/videos/', {'id': self.video.pk, 'action': 'clips'})
+        self.assertEqual(ClipJob.objects.count(), 1)
+        self.assertContains(self.client.get('/videos/'), 'AI clips:')
+
+    def test_each_video_has_its_own_conversation(self):
+        from assistant.models import Turn
+        other = SiteVideo.objects.create(source='/x/o.mov', original_name='o.mov', title='Other')
+        self.client.post('/videos/', {'id': self.video.pk, 'action': 'ai', 'instruction': 'Cut the first ten seconds'})
+        self.video.refresh_from_db()
+        turn = Turn.objects.get()
+        self.assertEqual(turn.conversation, self.video.conversation)
+        self.assertIn(self.video.source, turn.prompt)
+        self.assertIn(f'--parent {self.video.pk}', turn.prompt)
+        self.assertTrue(turn.prompt.endswith('Cut the first ten seconds'))
+        # A second instruction waits for the first reply.
+        self.client.post('/videos/', {'id': self.video.pk, 'action': 'ai', 'instruction': 'Again'})
+        self.assertEqual(Turn.objects.count(), 1)
+        self.client.post('/videos/', {'id': other.pk, 'action': 'ai', 'instruction': 'Make it vertical'})
+        other.refresh_from_db()
+        self.assertNotEqual(other.conversation, self.video.conversation)
+        page = self.client.get('/videos/')
+        self.assertContains(page, 'Cut the first ten seconds')
+        self.assertNotContains(page, 'add_site_video')  # the context the agent gets is not shown to the owner
+
+    def test_clips_are_grouped_and_filtered_by_comedian(self):
+        SiteVideo.objects.create(source='/x/a.mp4', original_name='a.mp4', kind=SiteVideo.SHORT, comedian='Ana Ruiz',
+                                 parent=self.video, title='Ana bit')
+        SiteVideo.objects.create(source='/x/b.mp4', original_name='b.mp4', kind=SiteVideo.LONG, comedian='Ben', title='Ben set')
+        page = self.client.get('/videos/?who=Ana+Ruiz')
+        self.assertContains(page, 'Ana bit')
+        self.assertNotContains(page, 'Ben set')
+        self.assertContains(page, 'who=Ben')
+
+    def test_delete_everything_needs_the_word(self):
+        self.client.post('/videos/', {'action': 'delete_everything', 'confirm': 'yes'})
+        self.assertTrue(SiteVideo.objects.exists())
+        self.client.post('/videos/', {'action': 'delete_everything', 'confirm': 'borrar'})
+        self.assertFalse(SiteVideo.objects.exists())
+
+    def test_add_site_video_files_an_edit_under_its_parent(self):
+        from django.core.management import call_command
+        os.makedirs(self.chat, exist_ok=True)
+        src = os.path.join(self.root, 'edit.mp4')
+        with open(src, 'wb') as fh:
+            fh.write(b'\x00' * 10)
+        call_command('add_site_video', src, '--parent', self.video.pk, '--title', 'Shorter')
+        edit = SiteVideo.objects.get(kind=SiteVideo.EDIT)
+        self.assertEqual((edit.parent, edit.title, edit.status), (self.video, 'Shorter', SiteVideo.PENDING))
+        self.assertTrue(edit.source.startswith(os.path.join(self.chat, 'upload', 'edits')))

@@ -125,7 +125,8 @@ def videos(request):
     rows = SiteVideo.objects.filter(published=True, status=SiteVideo.READY).exclude(web_file='')
     return JsonResponse({'videos': [
         {'id': v.id, 'title': v.label(lang), 'url': site_videos.url(v.web_file),
-         'poster': site_videos.url(v.poster_file) or None, 'duration': v.duration}
+         'poster': site_videos.url(v.poster_file) or None, 'duration': v.duration,
+         'comedian': v.comedian, 'vertical': v.kind == SiteVideo.SHORT}
         for v in rows
     ]})
 

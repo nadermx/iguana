@@ -527,6 +527,17 @@ class SiteVideo(models.Model):
     trim_start = models.FloatField(null=True, blank=True)
     trim_end = models.FloatField(null=True, blank=True)
     size = models.BigIntegerField(default=0)
+    # What it is: an upload, a clip the AI cut from one (short or long), or a version the AI edited on request.
+    UPLOAD, SHORT, LONG, EDIT = 'upload', 'short', 'long', 'edit'
+    KIND_CHOICES = [(UPLOAD, 'Upload'), (SHORT, 'Short clip'), (LONG, 'Long clip'), (EDIT, 'AI edit')]
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=UPLOAD, db_default=UPLOAD, db_index=True)
+    parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.SET_NULL, related_name='children',
+                               help_text='The video this clip or edit was made from.')
+    # db_default on both: between `migrate` and the reload, the old code still inserts rows without these columns.
+    comedian = models.CharField(max_length=120, blank=True, default='', db_default='', db_index=True)
+    # This video's own conversation with the /chat/ agent ("edit by instruction" on /videos/).
+    conversation = models.ForeignKey('assistant.Conversation', null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -540,3 +551,22 @@ class SiteVideo(models.Model):
         if lang == 'es' and self.title_es:
             return self.title_es
         return self.title or self.title_es or ''
+
+
+class ClipJob(models.Model):
+    """The AI clip finder run on one uploaded show (catalog/clips.py): transcribe, find the laughs, let Claude pick
+    the short and long clips and tell the comedians apart, then cut them. Started from /videos/."""
+    QUEUED, RUNNING, DONE, FAILED = 'queued', 'running', 'done', 'failed'
+    STATUS_CHOICES = [(QUEUED, 'Queued'), (RUNNING, 'Running'), (DONE, 'Done'), (FAILED, 'Failed')]
+
+    video = models.ForeignKey(SiteVideo, on_delete=models.CASCADE, related_name='clip_jobs')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=QUEUED, db_index=True)
+    step = models.CharField(max_length=200, blank=True)
+    error = models.TextField(blank=True)
+    summary = models.TextField(blank=True, help_text="Claude's notes on the show: who was on, what landed.")
+    clips_made = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']

@@ -67,6 +67,7 @@
       loop:
         - {name: iguana-agent-run, dir: /usr/local/bin}
         - {name: iguana-manage, dir: /usr/local/bin}
+        - {name: iguana-clip-ai, dir: /usr/local/bin}
         - {name: iguana-agent-deploy, dir: /usr/local/sbin}
 
     - name: System git config (hooks on, the agent's identity)

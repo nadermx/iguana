@@ -410,6 +410,10 @@
       become: true
       file: {path: "{{ site_videos_dir | default('/var/lib/iguana/site-videos') }}", state: directory, owner: "{{ deploy_user }}", group: "{{ deploy_user }}", mode: "0755"}
 
+    - name: Speech model directory for the AI clip finder
+      become: true
+      file: {path: /var/lib/iguana/whisper-models, state: directory, owner: "{{ deploy_user }}", group: "{{ deploy_user }}", mode: "0755"}
+
     # ffprobe records each clip's length after a /comic/ upload; ffmpeg is also what cuts those clips for ads.
     - name: ffmpeg for comedians' clips
       become: true

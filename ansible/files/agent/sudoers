@@ -4,3 +4,5 @@
 claude ALL=(ALL) NOPASSWD: ALL
 # The chat worker runs as iguana and starts each turn as claude.
 iguana ALL=(claude) NOPASSWD: /usr/local/bin/iguana-agent-run
+# The clip finder (backend/catalog/clips.py) asks Claude through the same account, with the Read tool only.
+iguana ALL=(claude) NOPASSWD: /usr/local/bin/iguana-clip-ai

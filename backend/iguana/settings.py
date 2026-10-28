@@ -45,6 +45,11 @@ CHAT_FILES_DIR = getattr(config, 'CHAT_FILES_DIR', str(BASE_DIR / 'chat-files'))
 # Outside backend/media on purpose: the weekly media tarball keeps eight copies, and videos would fill the disk.
 SITE_VIDEOS_DIR = getattr(config, 'SITE_VIDEOS_DIR', str(BASE_DIR / 'site-videos'))
 SITE_VIDEOS_URL = '/site-videos/'
+# The AI clip finder (catalog/clips.py): faster-whisper on this box's CPU. `small` handles English and Spanish at
+# about real time on two cores; the model downloads into CLIPS_WHISPER_DIR on first use.
+CLIPS_WHISPER_MODEL = getattr(config, 'CLIPS_WHISPER_MODEL', 'small')
+CLIPS_WHISPER_DIR = getattr(config, 'CLIPS_WHISPER_DIR', None)
+CLIPS_WHISPER_THREADS = getattr(config, 'CLIPS_WHISPER_THREADS', 2)
 
 INSTALLED_APPS = [
     'django.contrib.admin',

@@ -49,3 +49,22 @@ H.264 web copy and a poster in `SITE_VIDEOS_DIR` (`/var/lib/iguana/site-videos`,
 `/videos/` (superusers, `api/videos_views.py`) lists them: watch, title in both languages, trim (re-made from the
 original), order, delete (original to `upload/.trash/`, emptied after 30 days), and **Show on the site**, which
 puts it on `/en/videos/` and `/es/videos/` (`src/components/videos/VideosPage.astro`, `/api/public/v1/videos`).
+
+### AI clips and "Edit with AI" on `/videos/` (2026-10-28)
+
+**Make clips with AI** queues a `catalog.ClipJob` (`catalog/clips.py`), run by the same `process_videos` cron after
+any waiting web copies: faster-whisper `small` on this box's CPU (model in `/var/lib/iguana/whisper-models`), laughs
+found as loud word-free gaps, a still every minute or so, then Claude through the club's own account
+(`/usr/local/bin/iguana-clip-ai`, run as `claude` via sudoers, Read tool only, `--permission-mode dontAsk`) returns
+the line-up and the clips as JSON. `clean_clips` checks lengths (short 10 to 75 s, long 55 s to 10 min), overlaps and
+the 40-clip cap; shorts are cut vertical 1080x1920 with burned-in captions, longs as filmed. Each clip is a
+`SiteVideo` (kind short/long, `comedian`, `parent` = the show), never published by the job. The timed transcript
+stays at `chat-files/clips-work/<job>/transcript.txt`; stills and audio are deleted. A long show holds the queue
+for about an hour, so a web copy uploaded meanwhile waits.
+
+**Edit with AI** gives each video its own `/chat/` conversation (`SiteVideo.conversation`). Each instruction is a
+`Turn` prefixed with the file paths and how to hand the result back (`iguana-manage add_site_video <file>
+--parent <id>`); the page shows only what the owner typed and the replies. Results are `SiteVideo` kind `edit`.
+
+Uploads (`drop`, `comics`, `chat-files`) are pulled to the dev box nightly with the database dumps
+(`ansible/files/pull-iguana-backups.sh`, into `~/backups/iguana/files/`, never `--delete`).

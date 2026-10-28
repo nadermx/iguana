@@ -27,6 +27,17 @@ if [ "$rc" -ne 0 ]; then
   exit "$rc"
 fi
 
+# The uploads that live only on the server: /upload/'s documents, /comic/ submissions, and the original videos and
+# chat attachments (2026-10-28). Never mirrored with --delete, so a file removed on the server stays here. Skipped:
+# half-finished upload pieces, the clip finder's scratch, the trash, and the web copies (made again from originals).
+flock -n "$LOCK.files" timeout 3h rsync -a -e "ssh -o BatchMode=yes -o ConnectTimeout=20" \
+  --exclude '.parts/' --exclude 'clips-work/' --exclude '.trash/' \
+  "$HOST:/var/lib/iguana/drop" "$HOST:/var/lib/iguana/comics" "$HOST:/var/lib/iguana/chat-files" "$DEST/files/"
+rc=$?
+if [ "$rc" -ne 0 ]; then
+  echo "ERROR iguana_backup_pull: uploads rsync exited $rc"
+fi
+
 newest=$(ls -1t "$DEST"/daily/iguana-*.sql.gz 2>/dev/null | head -1)
 if [ -z "$newest" ]; then
   echo "ERROR iguana_backup_pull: no daily dump arrived"

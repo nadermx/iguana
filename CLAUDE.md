@@ -97,7 +97,7 @@ Local pairing: backend on `127.0.0.1:8000`, site on `127.0.0.1:4321` with `.env`
 | `/reservations/`, `/reservas/` | `backend/api/reservations_views.py` |
 | `/stats/`, `/revenue/` | `backend/api/stats_views.py`, `backend/api/revenue_views.py` |
 | `/comic/`, `/drop/` (also `/upload/`) | `backend/api/comic_views.py`, `backend/api/drop_views.py` |
-| `/videos/` (owner) and `/en/videos/` (public) | `backend/api/videos_views.py`, `backend/catalog/videos.py`, `src/components/videos/` |
+| `/videos/` (owner: AI clips by comedian, a chat per video) and `/en/videos/` (public) | `backend/api/videos_views.py`, `backend/catalog/videos.py`, `src/components/videos/` |
 | `/chat/` (owner's Claude Code agent) | `backend/api/chat_views.py`, `backend/assistant/`, server side `ansible/agent.yml` + `ansible/files/agent/` |
 | `/admin/` | Django admin on `api.iguanacomedy.com` |
 | Prices, orders, demand, reminders | `backend/sales/` (`services.py`, `demand.py`, `reminders.py`, `i18n.py`) |
@@ -209,10 +209,11 @@ pointing at Cloudflare IPs caused the old Error 1000); `iguanacomedy.mx` 301s to
   server path and `media_src` are real directories before syncing.
 - **Backups.** `/usr/local/sbin/iguana-db-backup` (from `ansible/files/iguana-db-backup.sh`, `/etc/cron.d/iguana-backup`,
   07:20 UTC nightly) dumps Postgres to `/var/backups/iguana/daily/`, **restores it into a scratch database and
-  checks seven key tables' row counts before pruning anything**, copies Sunday's dump to `weekly/` and tars
+  checks nine key tables' row counts before pruning anything**, copies Sunday's dump to `weekly/` and tars
   `backend/media` to `media/`. Kept 30 days / 26 weeks / 8 weeks. Any failure prunes nothing, logs
   `journalctl -t iguana-backup` and emails `john@iguanacomedy.com`; `LAST_OK` holds the last verified run.
-  The dev box pulls the folder at 03:40 local (`ansible/files/pull-iguana-backups.sh`, john's crontab) into
+  The `/chat/` agent's session files are tarred nightly into `agent/`. The dev box pulls the folder, and the uploads
+  (`/var/lib/iguana/{drop,comics,chat-files}`, into `files/`), at 03:40 local (`ansible/files/pull-iguana-backups.sh`, john's crontab) into
   `~/backups/iguana/`, never with `--delete`, keeping 90 days; errors are `ERROR iguana_backup_pull` in its
   `pull.log`. Restore: `gunzip -c <dump> | sudo -u postgres psql -d iguana` into an EMPTY database (the dump
   is `--no-owner --no-acl`, so re-grant to `iguana` afterwards).
