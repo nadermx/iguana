@@ -4,6 +4,10 @@ Set up 2026-10-25 at the owner's request: one person (the owner) talks to a Clau
 through https://iguanacomedy.com/chat/, and it can do anything the owner could do: change code and layout,
 add shows and users, refund an order the owner names, run ad campaigns, send mail. It is billed to the club's
 own Claude subscription, signed in on the server as the unix user `claude`.
+The account is `hello@iguanacomedy.com` (Pro, signed in 2026-10-28). Its sign-in mail and the SMS codes,
+forwarded from Andrew's phone through phone-leash, arrive at hello@, so a re-login can be finished from the
+server: `sudo -iu claude claude auth login --email hello@iguanacomedy.com` in tmux, open the printed link (a
+headless browser is stopped by Cloudflare, so a person does this step), and paste the code back.
 
 ## How a message travels
 

@@ -25,7 +25,15 @@ runs `postsrsd`: a foreign envelope sender becomes `SRS0=...@iguanacomedy.com` (
 address is turned back into the original sender. Our own zones are excluded, so mail we send is unchanged. Test:
 `postmap -q x@stripe.com tcp:127.0.0.1:10001` prints an SRS0 address, and `grep SRS0 /var/log/mail.log` shows it
 on real forwards. The original DKIM signatures survive the forward (Postfix does not touch the body), so DMARC
-still passes on the original domain. OpenARC is not packaged for Ubuntu 24.04, so there is no ARC seal.
+still passes on the original domain.
+
+SRS alone was not enough: the forwards still went to spam. The missing piece was an ARC seal, the forwarder's
+signed record of what the message passed when it arrived, which Google asks forwarders for. OpenARC is not
+packaged for Ubuntu 24.04, so `mail.yml` runs rspamd as a second milter purely to seal (every spam action off,
+its own DKIM signing off), using a copy of the recipient zone's DKIM key in `/var/lib/rspamd/arc/`. Check a
+forwarded message for `ARC-Seal: i=1 ... d=iguanacomedy.com` (i=2 when Gmail sealed it first), or test with
+`rspamc -h 127.0.0.1:11334 -i <sender ip> -r hello@iguanacomedy.com --mime <file.eml>`, which shows `ARC_SIGNED`.
+If the DKIM key is ever rotated, re-run `mail.yml` so the ARC copy follows.
 
 Spam that reaches `hello@` is forwarded too and still hurts the forward's standing at Gmail (one forward was
 refused `5.7.1 likely unsolicited` on 2026-10-28). If forwards keep landing in spam, the next step is a content

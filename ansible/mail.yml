@@ -39,6 +39,68 @@
     - name: postsrsd running
       service: {name: postsrsd, state: "{{ 'restarted' if srs_conf.changed else 'started' }}", enabled: true}
 
+    # ARC for the forwards. SRS alone fixed SPF, but Gmail still filed the forwards as spam: a message From
+    # stripe.com arriving from our IP is the shape of spoofing unless the forwarder vouches for what it saw.
+    # ARC is that voucher, and Google asks forwarders for it. OpenARC is not packaged for Ubuntu 24.04, so
+    # rspamd's arc module seals with the existing DKIM key of the RECIPIENT zone (selector mail). rspamd is
+    # here for the seal only: every spam action is off, so it never rejects, greylists or rewrites anything.
+    - name: rspamd package
+      apt: {pkg: rspamd, state: present, install_recommends: false}
+      environment: {DEBIAN_FRONTEND: noninteractive}
+
+    - name: ARC key directory
+      file: {path: /var/lib/rspamd/arc, state: directory, owner: _rspamd, group: _rspamd, mode: "0700"}
+
+    - name: ARC keys (copies of the DKIM keys)
+      copy:
+        src: "/etc/opendkim/keys/{{ item }}/mail.private"
+        dest: "/var/lib/rspamd/arc/{{ item }}.mail.key"
+        remote_src: true
+        owner: _rspamd
+        group: _rspamd
+        mode: "0600"
+      loop: "{{ mail_zones }}"
+      notify: restart rspamd
+
+    - name: rspamd config (ARC seal only)
+      copy:
+        dest: "/etc/rspamd/local.d/{{ item.name }}"
+        content: "{{ item.content }}"
+      loop:
+        - name: arc.conf
+          content: |
+            sign_inbound = true;
+            use_domain_sign_inbound = "recipient";
+            allow_hdrfrom_mismatch = true;
+            allow_username_mismatch = true;
+            allow_envfrom_empty = true;
+            use_esld = true;
+            selector = "mail";
+            path = "/var/lib/rspamd/arc/$domain.$selector.key";
+        - name: dkim_signing.conf
+          content: "enabled = false;\n"
+        - name: actions.conf
+          content: |
+            reject = null;
+            add_header = null;
+            rewrite_subject = null;
+            greylist = null;
+        - name: milter_headers.conf
+          content: "use = [];\n"
+        - name: worker-proxy.inc
+          content: |
+            milter = yes;
+            bind_socket = "127.0.0.1:11332";
+            upstream "local" { default = yes; self_scan = yes; }
+        - name: worker-normal.inc
+          content: "enabled = false;\n"
+        - name: worker-controller.inc
+          content: "bind_socket = \"127.0.0.1:11334\";\n"
+      notify: restart rspamd
+
+    - name: rspamd running
+      service: {name: rspamd, state: started, enabled: true}
+
     - name: Local mailbox users (no login shell)
       user: {name: "{{ item }}", system: true, shell: /usr/sbin/nologin, home: "/var/lib/{{ item }}", create_home: true}
       loop: [inbox, dmarc]
@@ -145,7 +207,8 @@
         - "recipient_canonical_classes = envelope_recipient, header_recipient"
         - "milter_default_action = accept"
         - "milter_protocol = 6"
-        - "smtpd_milters = inet:127.0.0.1:8891"
+        # OpenDKIM first (verifies, signs our own mail), then rspamd adds the ARC seal.
+        - "smtpd_milters = inet:127.0.0.1:8891, inet:127.0.0.1:11332"
         - "non_smtpd_milters = inet:127.0.0.1:8891"
         - "smtp_tls_security_level = may"
         - "smtp_tls_loglevel = 1"
@@ -230,3 +293,5 @@
       service: {name: opendkim, state: restarted}
     - name: restart postfix
       service: {name: postfix, state: restarted}
+    - name: restart rspamd
+      service: {name: rspamd, state: restarted}
