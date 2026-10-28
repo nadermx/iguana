@@ -36,6 +36,8 @@ node tests/show-e2e.mjs --slug <slug> --price <MXN>    # a paid show: both langu
 node tests/comic-e2e.mjs [--submit --email <addr>]    # /comic/ layout 320 to 1280 in both languages; --submit leaves a submission to delete
 API_KEY=... node tests/pos-e2e.mjs                     # the POS; needs its throwaway fixtures (see the POS section)
 node tests/chat-e2e.mjs --pass "$(cat ~/.credentials/vpsorg/iguanacomedy/owner_password)" [--send "Reply pong"]  # /chat/ gate, layout, one real turn
+node tests/videos-e2e.mjs --file <video> --pin "$(cat ~/.credentials/vpsorg/iguanacomedy/drop_pin)" \
+  --pass "$(cat ~/.credentials/vpsorg/iguanacomedy/owner_password)" [--keep]   # /upload/ in pieces + /videos/ at 390px; deletes it after
 
 # Offline tests for the operator scripts (no network)
 python3 -m unittest discover -s scripts/tests -v
@@ -62,6 +64,8 @@ cp config_example.py config.py   # DEBUG=True, SITE_URLS, PUBLIC_API_KEYS, EMAIL
 .venv/bin/python manage.py runserver 127.0.0.1:8000
 .venv/bin/python manage.py test api crm pos assistant                         # all backend tests (sales has none of its own)
 .venv/bin/python manage.py test api.tests.CheckoutTests.test_member_free_tickets_then_guest_discount  # one test
+.venv/bin/python manage.py test api.tests_videos   # /upload/ pieces, /videos/, the clip finder (real ffmpeg; the AI step is mocked)
+.venv/bin/python manage.py process_videos          # web copies + AI clip jobs, what the every-minute cron runs
 
 # Data (one-off / re-runnable, fill blanks unless --overwrite)
 .venv/bin/python manage.py import_kintana_export ~/iguana-migration/export     # client's Kintana CSV export
@@ -77,7 +81,7 @@ ansible-playbook email_check.yml               # end-to-end mail verification (a
 
 `README.md` (rewritten 2026-10-23) is the public overview; `backend/README.md` and `docs/` are current, except
 `docs/deploy-cloudflare.md` and `docs/deploy-dokploy.md`, which are earlier hosting kept for reference. Read the matching `docs/` page before working in that area: `deploy-history`, `mail`, `meta-ads`,
-`tiktok-ads`, `open-mics`, `pos-and-staff-pages`, `comic-and-drop`, `chat-agent`. CLAUDE.md keeps the rules; the pages keep
+`tiktok-ads`, `open-mics`, `pos-and-staff-pages`, `comic-and-drop` (also `/videos/` and the AI clips), `chat-agent`. CLAUDE.md keeps the rules; the pages keep
 the history and evidence behind them.
 
 Local pairing: backend on `127.0.0.1:8000`, site on `127.0.0.1:4321` with `.env` / `.dev.vars` setting
@@ -367,8 +371,16 @@ Detail and evidence: **`docs/mail.md`**. `iguana-mail` on the server reads the l
 - `/drop/` (`api/drop_views.py`): the owner's upload-only document drop behind `drop_pin`, files in
   `/var/lib/iguana/drop`. Never copy any of it into the repo; read it into `~/.credentials/iguanacomedy-business/`
   and delete it from the server once used. `/upload/` is the same view (the address given to the owner). Its
-  "For the site" heading is the exception: those photos and videos (up to 1.5 GB, nginx limit on these paths) go
-  to `/var/lib/iguana/chat-files/upload/` for the `/chat/` agent, not beside the IDs (`assistant/files.py`).
+  "For the site" heading is the exception: those photos and videos go to `/var/lib/iguana/chat-files/upload/` for
+  the `/chat/` agent, not beside the IDs (`assistant/files.py`). Any size: the page sends 16 MB pieces
+  (`action=chunk`/`finish`), so nginx's 1700m only limits the no-JavaScript form post.
+- `/videos/` (`api/videos_views.py`, superusers): every video sent "For the site" is a `catalog.SiteVideo`. The
+  `process_videos` cron (every minute, one `flock`, nice 19) makes an H.264 web copy in
+  `/var/lib/iguana/site-videos` (served at `/site-videos/`, kept out of `backend/media` so the weekly media
+  tarball never carries video) and runs `ClipJob`s: faster-whisper on the box, laughs from the audio, then Claude
+  through the club's account (`iguana-clip-ai`, Read tool only) picks short/long clips per comedian. "Edit with AI"
+  is a per-video `/chat/` conversation whose results come back through `iguana-manage add_site_video`. Nothing
+  is ever published automatically: "Show on the site" feeds `/api/public/v1/videos` and `/en|es/videos/`.
 
 ### `/chat/`: a Claude Code instance runs the site too (detail: `docs/chat-agent.md`)
 
