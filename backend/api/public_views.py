@@ -14,7 +14,9 @@ from sales.links import public_base
 from sales.demand import demand_for
 from sales.i18n import normalize
 from crm.models import Contact, ContactList, ContactListMember
-from catalog.models import Artist, Event, FormEndpoint, FormSubmission, LineupEntry, SiteFile, StoreCollection, StoreProduct, Venue
+from catalog import videos as site_videos
+from catalog.models import (Artist, Event, FormEndpoint, FormSubmission, LineupEntry, SiteFile, SiteVideo, StoreCollection,
+                            StoreProduct, Venue)
 from sales.services import upsert_contact
 
 from .auth import api_view, error
@@ -113,6 +115,19 @@ def artist_detail(request, key):
     data = artist_json(artist, request.GET.get('locale', 'en'))
     data['upcomingEvents'] = _upcoming_for(normalize(request.GET.get('locale')), lineup__artist=artist)
     return JsonResponse({'artist': data})
+
+
+@api_view()
+def videos(request):
+    """The videos the owner ticked "Show on the site" on /videos/, in their order, titled in the reader's language.
+    Paths are site-relative: nginx serves /site-videos/ on the main domain."""
+    lang = normalize(request.GET.get('locale'))
+    rows = SiteVideo.objects.filter(published=True, status=SiteVideo.READY).exclude(web_file='')
+    return JsonResponse({'videos': [
+        {'id': v.id, 'title': v.label(lang), 'url': site_videos.url(v.web_file),
+         'poster': site_videos.url(v.poster_file) or None, 'duration': v.duration}
+        for v in rows
+    ]})
 
 
 @api_view()

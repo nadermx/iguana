@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import (Artist, Event, FormEndpoint, FormSubmission, InventoryChange, InventoryItem,
+from .models import (SiteVideo, Artist, Event, FormEndpoint, FormSubmission, InventoryChange, InventoryItem,
                      LineupEntry, MenuCategory, MenuItem, MenuItemIngredient, SiteFile,
                      StoreCollection, StoreProduct,
                      StoreProductImage, StoreVariant, TicketType, Tour, Venue)
@@ -188,3 +188,11 @@ class InventoryChangeAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(SiteVideo)
+class SiteVideoAdmin(admin.ModelAdmin):
+    """Managed on /videos/ (watch, trim, show on the site); the admin is for looking things up."""
+    list_display = ('__str__', 'status', 'published', 'position', 'created_at')
+    list_filter = ('status', 'published')
+    readonly_fields = ('source', 'original_name', 'web_file', 'poster_file', 'duration', 'size', 'error')

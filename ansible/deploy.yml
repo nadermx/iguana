@@ -404,6 +404,12 @@
       become: true
       file: {path: "{{ comics_dir | default('/var/lib/iguana/comics') }}", state: directory, owner: "{{ deploy_user }}", group: "{{ deploy_user }}", mode: "0700"}
 
+    # Web copies and posters of the videos uploaded for the site (catalog/videos.py). nginx (www-data) serves them at
+    # /site-videos/, so 0755; a video not shown on the site has a random token in its name, never a listing.
+    - name: Site videos directory
+      become: true
+      file: {path: "{{ site_videos_dir | default('/var/lib/iguana/site-videos') }}", state: directory, owner: "{{ deploy_user }}", group: "{{ deploy_user }}", mode: "0755"}
+
     # ffprobe records each clip's length after a /comic/ upload; ffmpeg is also what cuts those clips for ads.
     - name: ffmpeg for comedians' clips
       become: true
@@ -429,6 +435,19 @@
         minute: "17"
         # crm/geo.py reopens the file when it changes, so no restart; results go to syslog (journalctl -t iguana-geoip).
         job: "timeout 30m /usr/local/bin/iguana-geoip-refresh {{ geoip_db }} 2>&1 | logger -t iguana-geoip"
+
+    - name: Make web copies of uploaded site videos
+      become: true
+      become_user: "{{ deploy_user }}"
+      cron:
+        name: iguana process videos
+        user: "{{ deploy_user }}"
+        minute: "*"
+        # Every minute so an upload shows on /videos/ soon after it lands; flock -n so a long transcode is never
+        # joined by a second one. ffmpeg runs at nice 19 inside, so the site keeps its CPU.
+        job: >-
+          flock -n /tmp/iguana-process-videos.lock timeout 7h {{ app_dir }}/backend/venv/bin/python
+          {{ app_dir }}/backend/manage.py process_videos 2>&1 | logger -t iguana-videos
 
     - name: Honour unsubscribes that arrive as email
       become: true

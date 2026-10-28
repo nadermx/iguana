@@ -3,7 +3,7 @@ from django.urls import path, re_path
 
 from . import (carta_views, chat_views, comic_views, door_views, drop_views, embed_views, fan_views, floor_views, inventory_views,
                menu_views, pay_views, public_views, reservations_views, revenue_views, stats_views,
-               tables_views)
+               tables_views, videos_views)
 
 urlpatterns = [
     # Public catalogue (@kintana/sdk KintanaClient)
@@ -52,7 +52,8 @@ urlpatterns = [
     # it. /mesas/puerta/ stays for the tablets that already have it bookmarked.
     path('scan/', door_views.door, name='floor-scan'),
     path('drop/', drop_views.drop, name='drop'),
-    path('upload/', drop_views.drop, name='upload'),  # the short address given to the owner
+    path('upload/', drop_views.drop, name='upload'),
+    path('videos/', videos_views.videos, name='videos'),  # the owner's uploaded videos, and which show on the site  # the short address given to the owner
     # Comedians send their photo, clips and the dates they want (api/comic_views.py).
     path('comic/', comic_views.comic, name='comic'),
     path('comic/thanks/', comic_views.thanks, name='comic-thanks'),
@@ -81,6 +82,7 @@ urlpatterns = [
     path('mesas/mesa/<int:number>/agregar/', tables_views.add_round, name='floor-add-round'),
     path('mesas/estado/', tables_views.board_state, name='floor-board-state'),
     path('api/public/v1/menu', menu_views.menu),
+    path('api/public/v1/videos', public_views.videos),
     path('api/public/v1/table-orders', menu_views.table_order),
     path('api/public/v1/site', public_views.site),
     path('api/public/v1/site/manifest', public_views.site_manifest),

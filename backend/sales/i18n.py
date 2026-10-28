@@ -624,6 +624,48 @@ ES = {
     'Photos, videos, menus, posters: anything to go on the site. The chat at iguanacomedy.com/chat/ can use them; tell it what they are for.':
         'Fotos, videos, menús, carteles: lo que vaya en el sitio. El chat de iguanacomedy.com/chat/ puede usarlos; dile para qué son.',
     'Files (photos, videos or PDFs, up to 1.5 GB in total)': 'Archivos (fotos, videos o PDF, hasta 1.5 GB en total)',
+    'Files (photos, videos or PDFs, any size)': 'Archivos (fotos, videos o PDF, de cualquier tamaño)',
+    'The connection dropped. Trying again, keep this page open.': 'Se cortó la conexión. Reintentando, no cierres esta página.',
+    'Almost done, saving the files.': 'Casi listo, guardando los archivos.',
+    # /videos/ (api/videos_views.py)
+    'Videos': 'Videos',
+    'Videos sent to iguanacomedy.com/upload/ under For the site. Tick Show on the site to put one on the Videos page; untick it to take it off.':
+        'Los videos enviados a iguanacomedy.com/upload/ en Para el sitio. Marca Mostrar en el sitio para ponerlo en la página de Videos; desmárcalo para quitarlo.',
+    'Upload more': 'Subir más',
+    'No videos yet.': 'Todavía no hay videos.',
+    'This video could not be converted for the web.': 'Este video no se pudo convertir para la web.',
+    'Making the web version. Long videos take a few minutes.': 'Preparando la versión para la web. Los videos largos tardan unos minutos.',
+    'On the site': 'En el sitio',
+    'Not on the site': 'No está en el sitio',
+    'trimmed from {0} to {1}': 'recortado de {0} a {1}',
+    'the end': 'el final',
+    'Download': 'Descargar',
+    'Title (English)': 'Título (inglés)',
+    'Title (Spanish)': 'Título (español)',
+    'Show on the site': 'Mostrar en el sitio',
+    'Order (lower first)': 'Orden (menor primero)',
+    'Save': 'Guardar',
+    'Trim': 'Recortar',
+    'Keep only the part between these times, for example 0:12 and 1:45. Leave one empty to keep from the start or to the end. The original is never changed.':
+        'Deja solo la parte entre estos tiempos, por ejemplo 0:12 y 1:45. Deja uno vacío para conservar desde el inicio o hasta el final. El original nunca se cambia.',
+    'Start': 'Inicio',
+    'End': 'Fin',
+    'Use the full video again': 'Usar el video completo otra vez',
+    'More': 'Más',
+    'Try again': 'Intentar de nuevo',
+    'For other changes (cutting a section out, adding text, joining clips), tell the chat at iguanacomedy.com/chat/ what to do with this video.':
+        'Para otros cambios (quitar una parte, agregar texto, unir clips), dile al chat de iguanacomedy.com/chat/ qué hacer con este video.',
+    'Delete this video? It comes off the site and out of this list.': '¿Borrar este video? Sale del sitio y de esta lista.',
+    'Delete': 'Borrar',
+    'Saved. It can go on the site once the web copy is ready.': 'Guardado. Puede ir al sitio cuando la versión para la web esté lista.',
+    'Saved.': 'Guardado.',
+    'Write times as seconds or minutes:seconds, for example 1:30.': 'Escribe los tiempos en segundos o minutos:segundos, por ejemplo 1:30.',
+    'The end has to come after the start.': 'El fin tiene que ir después del inicio.',
+    'Trimming. The new version appears here in a few minutes; the original is kept.':
+        'Recortando. La versión nueva aparece aquí en unos minutos; el original se conserva.',
+    'Going back to the full video. It appears here in a few minutes.': 'Volviendo al video completo. Aparece aquí en unos minutos.',
+    'Trying again.': 'Intentando de nuevo.',
+    'Deleted.': 'Borrado.',
 }
 
 

@@ -36,3 +36,16 @@ upload emails `NOTIFY_EMAILS` the heading and count only. Our notes back to the 
 needed, plus a sentence in each language) come from `drop_dir/status.json`, copied up with ansible (owner `iguana`,
 0600), never committed, because they say what a document is missing; no deploy needed to change them. To read them, copy them off with ansible into
 `~/.credentials/iguanacomedy-business/` and delete them from the server once used. Never put any of it in the repo.
+
+## Any size, and `/videos/` (2026-10-28)
+
+`/upload/` sends each file in 16 MB pieces (`action=chunk`, assembled in `DROP_DIR/.parts/`, `action=finish` checks
+sizes and moves them into place), retrying a piece when the connection drops, so there is no size limit beyond the
+free disk (`assistant.files.low_on_disk`, 5 GB kept free). A video sent "For the site" becomes a `catalog.SiteVideo`.
+The `process_videos` cron (every minute, `flock`, ffmpeg at nice 19, `journalctl -t iguana-videos`) makes an
+H.264 web copy and a poster in `SITE_VIDEOS_DIR` (`/var/lib/iguana/site-videos`, served at `/site-videos/`), outside
+`backend/media` so the weekly media tarball never carries video. The original is never changed.
+
+`/videos/` (superusers, `api/videos_views.py`) lists them: watch, title in both languages, trim (re-made from the
+original), order, delete (original to `upload/.trash/`, emptied after 30 days), and **Show on the site**, which
+puts it on `/en/videos/` and `/es/videos/` (`src/components/videos/VideosPage.astro`, `/api/public/v1/videos`).

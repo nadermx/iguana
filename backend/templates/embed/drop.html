@@ -47,14 +47,16 @@
 
     <form method="post" enctype="multipart/form-data" class="stack drop-form" id="upload"
           data-uploading="{% t lang "Uploading, {0}% done. Keep this page open." %}"
-          data-failed="{% t lang "The upload did not finish. Check your connection and send it again, or write to hello@iguanacomedy.com." %}">
+          data-failed="{% t lang "The upload did not finish. Check your connection and send it again, or write to hello@iguanacomedy.com." %}"
+          data-retrying="{% t lang "The connection dropped. Trying again, keep this page open." %}"
+          data-finishing="{% t lang "Almost done, saving the files." %}">
       {% csrf_token %}
       <label for="kind">{% t lang "What are you sending?" %}</label>
       <select id="kind" name="kind" required>
         <option value="">{% t lang "Choose one" %}</option>
         {% for item in items %}<option value="{{ item.key }}">{{ item.label }}</option>{% endfor %}
       </select>
-      <label for="files">{% t lang "Files (photos, videos or PDFs, up to 1.5 GB in total)" %}</label>
+      <label for="files">{% t lang "Files (photos, videos or PDFs, any size)" %}</label>
       <input id="files" name="files" type="file" multiple>
       <label for="note">{% t lang "Note (optional): logins, answers, links" %}</label>
       <textarea id="note" name="note"></textarea>
@@ -85,40 +87,92 @@
 {% block scripts %}
 <script>
 (function () {
-  // A video takes minutes from a phone, so show how far it has got. Without XHR the form posts as usual.
+  // Any size (owner, 2026-10-28): each file goes up in 16 MB pieces, and a piece that fails is sent again, so a
+  // phone that loses signal halfway through a 4 GB video carries on rather than starting over. The server
+  // answers each piece with how much of that file it holds, and the page always continues from there.
   var form = document.getElementById('upload');
-  if (!form || !window.FormData || !window.XMLHttpRequest) return;
+  if (!form || !window.FormData || !window.fetch || !window.Blob || !Blob.prototype.slice || !window.crypto) return;
+  var CHUNK = 16 * 1024 * 1024;
   var send = document.getElementById('send');
-  form.addEventListener('submit', function (ev) {
+  var progress = document.getElementById('progress');
+  var bar = document.getElementById('bar');
+  var text = document.getElementById('progress-text');
+  var token = form.querySelector('[name=csrfmiddlewaretoken]').value;
+  var leaving = function (e) { e.preventDefault(); e.returnValue = ''; };
+
+  function uploadId() {
+    var a = new Uint8Array(16); crypto.getRandomValues(a);
+    return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function post(fields) {
+    var body = new FormData();
+    body.append('csrfmiddlewaretoken', token);
+    Object.keys(fields).forEach(function (k) { body.append(k, fields[k]); });
+    return fetch(window.location.href, { method: 'POST', body: body, credentials: 'same-origin',
+                                         headers: { 'X-CSRFToken': token } });
+  }
+  function show(pct, message) {
+    bar.style.width = pct + '%';
+    text.textContent = message || form.dataset.uploading.replace('{0}', pct);
+  }
+  function fail(message) {
+    window.removeEventListener('beforeunload', leaving);
+    send.disabled = false;
+    progress.classList.remove('on');
+    text.textContent = '';
+    alert(message || form.dataset.failed);
+  }
+
+  form.addEventListener('submit', async function (ev) {
     ev.preventDefault();
-    var xhr = new XMLHttpRequest();
-    var progress = document.getElementById('progress');
-    var bar = document.getElementById('bar');
-    var text = document.getElementById('progress-text');
-    var failed = function () {
-      send.disabled = false;
-      progress.classList.remove('on');
-      text.textContent = '';
-      alert(form.dataset.failed);
-    };
+    var files = Array.prototype.slice.call(document.getElementById('files').files);
+    var kind = form.kind.value, note = form.note.value;
+    if (!kind) { form.kind.reportValidity && form.kind.reportValidity(); return; }
+    var total = files.reduce(function (n, f) { return n + f.size; }, 0) || 1;
+    var before = 0, sent = [];
     send.disabled = true;
     progress.classList.add('on');
-    xhr.upload.addEventListener('progress', function (e) {
-      if (!e.lengthComputable) return;
-      var pct = Math.min(99, Math.floor(e.loaded / e.total * 100));
-      bar.style.width = pct + '%';
-      text.textContent = form.dataset.uploading.replace('{0}', pct);
-    });
-    xhr.onload = function () {
-      if (xhr.status !== 200) { failed(); return; }
-      // The view answers a good upload with a redirect to ?sent=, which XHR follows; anything else is the page
-      // again with the error on it.
-      if (/[?&]sent=/.test(xhr.responseURL)) { bar.style.width = '100%'; window.location.href = xhr.responseURL; return; }
-      document.open(); document.write(xhr.responseText); document.close();
-    };
-    xhr.onerror = failed;
-    xhr.open('POST', window.location.href);
-    xhr.send(new FormData(form));
+    window.addEventListener('beforeunload', leaving);
+    show(0);
+    try {
+      for (var i = 0; i < files.length; i++) {
+        var file = files[i], id = uploadId(), have = 0, misses = 0, started = false;
+        // At least one piece per file, so an empty file still arrives.
+        while (!started || have < file.size) {
+          var res = null;
+          try {
+            res = await post({ action: 'chunk', upload: id, offset: have,
+                               chunk: file.slice(have, Math.min(have + CHUNK, file.size)) });
+          } catch (e) { res = null; }
+          if (res && (res.status === 200 || res.status === 409)) {
+            have = (await res.json()).have; misses = 0; started = true;
+            show(Math.min(99, Math.floor((before + have) / total * 100)));
+          } else if (res && res.status !== 502 && res.status !== 503 && res.status !== 504 && res.status !== 408) {
+            var err = {}; try { err = await res.json(); } catch (e) {}
+            fail(err.error); return;
+          } else {
+            misses += 1;
+            if (misses > 40) { fail(); return; }
+            text.textContent = form.dataset.retrying;
+            await wait(Math.min(30000, 1000 * misses));
+          }
+        }
+        before += file.size;
+        sent.push({ upload: id, name: file.name, size: file.size });
+      }
+      show(99, form.dataset.finishing);
+      var done = null;
+      for (var tries = 0; tries < 10 && !done; tries++) {
+        try { done = await post({ action: 'finish', kind: kind, note: note, files: JSON.stringify(sent) }); }
+        catch (e) { done = null; await wait(3000); }
+      }
+      var answer = done ? await done.json() : {};
+      if (!done || !done.ok || !answer.redirect) { fail(answer.error); return; }
+      window.removeEventListener('beforeunload', leaving);
+      show(100);
+      window.location.href = answer.redirect;
+    } catch (e) { fail(); }
   });
 })();
 </script>

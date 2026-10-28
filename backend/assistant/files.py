@@ -58,6 +58,26 @@ def store(uploads, *parts, note=''):
     return saved
 
 
+def store_paths(parts, *folder_parts, note=''):
+    """`store` for files that are already on this disk (the pieces /upload/ assembled): [(path, original name)]."""
+    path = folder(*folder_parts)
+    stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    saved = []
+    for n, (src, original) in enumerate(parts):
+        name = get_valid_filename(os.path.basename(original or 'file'))[-120:] or 'file'
+        dest = os.path.join(path, f'{stamp}-{n}__{name}')
+        file_move_safe(src, dest, allow_overwrite=False)
+        os.chmod(dest, 0o640)
+        saved.append((dest, os.path.getsize(dest)))
+    if note:
+        dest = os.path.join(path, f'{stamp}-note__note.txt')
+        with open(dest, 'x', encoding='utf-8') as out:
+            out.write(note + '\n')
+        os.chmod(dest, 0o640)
+        saved.append((dest, os.path.getsize(dest)))
+    return saved
+
+
 def size(n):
     return f'{n / MB:.1f} MB' if n >= MB / 10 else f'{max(1, round(n / 1024))} KB'
 

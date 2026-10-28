@@ -1,0 +1,71 @@
+---
+import Base from "../../layouts/Base.astro";
+import { site } from "../../content/site";
+import type { Locale } from "../../i18n/locale";
+import { localizePath } from "../../i18n/routes";
+import { loadVideos } from "../../lib/videos";
+import { getKintanaEnv, hasKintanaCredentials } from "../../lib/kintana-env";
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const { apiKey, baseUrl } = getKintanaEnv();
+const videos = hasKintanaCredentials() && apiKey && baseUrl ? ((await loadVideos(baseUrl, apiKey, locale)) ?? []) : [];
+
+const copy = {
+  en: {
+    eyebrow: "On stage at Iguana",
+    title: "Videos",
+    intro: "Sets, nights and moments from the club in Playa del Carmen.",
+    empty: "New videos are on the way. In the meantime, the best way to see it is in the room.",
+    shows: "See what is on",
+    openMic: "Open mic nights",
+  },
+  es: {
+    eyebrow: "En el escenario de Iguana",
+    title: "Videos",
+    intro: "Rutinas, noches y momentos del club en Playa del Carmen.",
+    empty: "Vienen videos nuevos. Mientras tanto, la mejor forma de verlo es en la sala.",
+    shows: "Ver la cartelera",
+    openMic: "Noches de open mic",
+  },
+}[locale];
+---
+
+<Base title={`${copy.title} · ${site.name}`} description={copy.intro} noindex={videos.length === 0}>
+  <section class="mx-auto max-w-5xl">
+    <p class="text-xs font-semibold uppercase tracking-[0.45em] text-neutral-500">{copy.eyebrow}</p>
+    <h1 class="mt-4 font-display text-5xl text-neutral-950" style="font-family: var(--font-display);">{copy.title}</h1>
+    <p class="mt-6 text-lg leading-relaxed text-neutral-700">{copy.intro}</p>
+
+    {
+      videos.length === 0 ? (
+        <p class="mt-12 rounded-3xl border border-neutral-200 px-8 py-8 text-neutral-700">{copy.empty}</p>
+      ) : (
+        <div class="mt-12 grid gap-10 md:grid-cols-2">
+          {videos.map((video) => (
+            <figure class="min-w-0">
+              {/* preload="none": a page of videos must not download all of them before anyone presses play. */}
+              <video
+                class="aspect-video w-full rounded-3xl bg-neutral-950 object-contain"
+                controls
+                playsinline
+                preload="none"
+                poster={video.poster ?? undefined}
+                src={video.url}
+              />
+              {video.title ? <figcaption class="mt-3 font-semibold text-neutral-950">{video.title}</figcaption> : null}
+            </figure>
+          ))}
+        </div>
+      )
+    }
+
+    <div class="mt-12 flex flex-wrap gap-6 text-xs font-semibold uppercase tracking-[0.35em] text-brand">
+      <a class="underline-offset-4 hover:underline" href={localizePath(locale, "events")}>{copy.shows} →</a>
+      <a class="underline-offset-4 hover:underline" href={localizePath(locale, "openMic")}>{copy.openMic} →</a>
+    </div>
+  </section>
+</Base>

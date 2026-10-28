@@ -499,3 +499,44 @@ class FloorSettings(models.Model):
         """The row, created on first use. Never raises, because the board must draw even on a fresh database."""
         row, _ = cls.objects.get_or_create(pk=cls.SINGLETON)
         return row
+
+
+class SiteVideo(models.Model):
+    """A video uploaded under "For the site" on /upload/, managed on /videos/ (api/videos_views.py).
+
+    The original stays where the upload put it (`source`, in CHAT_FILES_DIR/upload, where the /chat/ agent can read
+    it). `process_videos` makes a web copy beside a poster frame in SITE_VIDEOS_DIR: an iPhone .MOV is usually
+    HEVC, which Chrome on most computers will not play, so nothing is shown from the original. The web copy's name
+    carries a random token, so a video that is not shown on the site has no address anyone can guess.
+    """
+    PENDING, PROCESSING, READY, FAILED = 'pending', 'processing', 'ready', 'failed'
+    STATUS_CHOICES = [(PENDING, 'Waiting'), (PROCESSING, 'Processing'), (READY, 'Ready'), (FAILED, 'Failed')]
+
+    id = models.CharField(primary_key=True, max_length=40, default=new_id, editable=False)
+    source = models.CharField(max_length=500, help_text='The original upload, on the server.')
+    original_name = models.CharField(max_length=200, blank=True)
+    title = models.CharField(max_length=160, blank=True)
+    title_es = models.CharField(max_length=160, blank=True)
+    published = models.BooleanField(default=False, help_text='Shown on the Videos page of the site.')
+    position = models.IntegerField(default=0, help_text='Lower comes first on the site.')
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=PENDING, db_index=True)
+    error = models.TextField(blank=True)
+    web_file = models.CharField(max_length=200, blank=True)
+    poster_file = models.CharField(max_length=200, blank=True)
+    duration = models.FloatField(null=True, blank=True)
+    trim_start = models.FloatField(null=True, blank=True)
+    trim_end = models.FloatField(null=True, blank=True)
+    size = models.BigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['position', '-created_at']
+
+    def __str__(self):
+        return self.title or self.original_name or self.id
+
+    def label(self, lang):
+        if lang == 'es' and self.title_es:
+            return self.title_es
+        return self.title or self.title_es or ''

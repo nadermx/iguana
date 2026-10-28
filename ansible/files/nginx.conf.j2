@@ -164,6 +164,12 @@ upstream iguana_api { server 127.0.0.1:8001; }
        (api/drop_views.py, at /upload/ and its old address /drop/), plus files attached in /chat/ itself. Phone
        video is big, so these paths take what /comic/ takes; nginx buffers the body to disk first, so a slow
        upload never holds a gunicorn worker. #}
+    {# /videos/: the owner's page for those uploads (api/videos_views.py). /site-videos/: the web copies it makes,
+       which the site's Videos page plays. nginx serves byte ranges itself, so seeking in a long video works. #}
+    location = /videos        { return 301 /videos/; }
+    location ^~ /videos/      { proxy_pass http://iguana_api; include /etc/nginx/iguana_proxy_params; }
+    location ^~ /site-videos/ { alias {{ site_videos_dir | default('/var/lib/iguana/site-videos') }}/; expires 7d;
+                                add_header Cache-Control "public"; autoindex off; }
     location = /drop          { return 301 /drop/; }
     location = /upload        { return 301 /upload/; }
     location ~ ^/(drop|upload)/ { client_max_body_size 1700m; client_body_timeout 120s; proxy_send_timeout 120s;

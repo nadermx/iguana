@@ -41,6 +41,10 @@ DROP_DIR = getattr(config, 'DROP_DIR', str(BASE_DIR / 'drop'))
 COMICS_DIR = getattr(config, 'COMICS_DIR', str(BASE_DIR / 'comics'))
 # What the owner hands the /chat/ agent (assistant/files.py): chat attachments and /upload/'s "For the site".
 CHAT_FILES_DIR = getattr(config, 'CHAT_FILES_DIR', str(BASE_DIR / 'chat-files'))
+# /videos/ (api/videos_views.py): the web copies and posters of uploaded videos, served by nginx at SITE_VIDEOS_URL.
+# Outside backend/media on purpose: the weekly media tarball keeps eight copies, and videos would fill the disk.
+SITE_VIDEOS_DIR = getattr(config, 'SITE_VIDEOS_DIR', str(BASE_DIR / 'site-videos'))
+SITE_VIDEOS_URL = '/site-videos/'
 
 INSTALLED_APPS = [
     'django.contrib.admin',
