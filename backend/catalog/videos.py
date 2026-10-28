@@ -143,16 +143,15 @@ def delete(video):
 
 
 def empty_trash():
-    trash = os.path.join(settings.CHAT_FILES_DIR, 'upload', TRASH)
+    """Remove trashed originals older than TRASH_DAYS. Each folder keeps its own `.trash` (uploads, clips, edits)."""
     cutoff = time.time() - TRASH_DAYS * 86400
-    try:
-        names = os.listdir(trash)
-    except FileNotFoundError:
-        return 0
     removed = 0
-    for name in names:
-        path = os.path.join(trash, name)
-        if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
-            os.remove(path)
-            removed += 1
+    for folder, _, names in os.walk(os.path.join(settings.CHAT_FILES_DIR, 'upload')):
+        if os.path.basename(folder) != TRASH:
+            continue
+        for name in names:
+            path = os.path.join(folder, name)
+            if os.path.getmtime(path) < cutoff:
+                os.remove(path)
+                removed += 1
     return removed

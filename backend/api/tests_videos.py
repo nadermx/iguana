@@ -308,3 +308,18 @@ class VideoAiTests(Dirs):
         edit = SiteVideo.objects.get(kind=SiteVideo.EDIT)
         self.assertEqual((edit.parent, edit.title, edit.status), (self.video, 'Shorter', SiteVideo.PENDING))
         self.assertTrue(edit.source.startswith(os.path.join(self.chat, 'upload', 'edits')))
+
+
+class TrashTests(Dirs):
+    def test_old_trash_is_emptied_in_every_folder(self):
+        import time
+        old = time.time() - 31 * 86400
+        for sub in ('upload/.trash', 'upload/clips/7/.trash', 'upload/edits/.trash'):
+            os.makedirs(os.path.join(self.chat, sub))
+            for name, when in (('old.mp4', old), ('new.mp4', None)):
+                path = os.path.join(self.chat, sub, name)
+                open(path, 'wb').close()
+                if when:
+                    os.utime(path, (when, when))
+        self.assertEqual(videos.empty_trash(), 3)
+        self.assertTrue(os.path.exists(os.path.join(self.chat, 'upload/clips/7/.trash/new.mp4')))
