@@ -78,6 +78,12 @@ class ChatFlowTests(TestCase):
     def send(self, **body):
         return self.client.post('/chat/send/', json.dumps(body), content_type='application/json')
 
+    def test_old_conversations_stay_in_the_picker(self):
+        made = [Conversation.objects.create(title=f'talk {i}') for i in range(35)]
+        page = self.client.get('/chat/')
+        self.assertContains(page, f'value="{made[0].pk}"')
+        self.assertEqual(self.client.get(f'/chat/?c={made[0].pk}').status_code, 200)
+
     def test_send_queues_a_turn_and_one_at_a_time(self):
         first = self.send(prompt='  Add a show on Friday  ').json()
         conversation = Conversation.objects.get(pk=first['conversation'])

@@ -60,7 +60,9 @@ def _turn(turn):
 @require_GET
 def chat(request):
     lang = lang_from_request(request)
-    conversations = list(Conversation.objects.all()[:30])
+    # Every conversation, never the newest N: an older one dropped off the picker is a conversation the owner
+    # can no longer open (owner, 2026-10-28: keep the old conversations).
+    conversations = list(Conversation.objects.all())
     current = None
     if request.GET.get('c'):
         current = get_object_or_404(Conversation, pk=request.GET['c']) if request.GET['c'].isdigit() else None

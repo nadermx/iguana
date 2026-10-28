@@ -8,6 +8,9 @@
 #   daily/   every night, kept KEEP_DAILY days
 #   weekly/  Sunday's dump, kept KEEP_WEEKLY days
 #   media/   Sunday tarball of backend/media (uploaded posters), kept KEEP_MEDIA days
+#   agent/   nightly tarball of the /chat/ agent's Claude Code sessions, kept KEEP_DAILY days. The transcript is
+#            in the database, but the agent resumes a conversation from these files, so without them a
+#            restored server shows old conversations it can no longer continue.
 #
 # The dev box pulls this directory every night (ansible/files/pull-iguana-backups.sh), because a backup that
 # lives on the same disk as the database dies with it.
@@ -18,6 +21,7 @@ set -euo pipefail
 DB=iguana
 DIR=/var/backups/iguana
 MEDIA=/home/www/iguana/backend/media
+AGENT_SESSIONS=/home/claude/.claude/projects
 KEEP_DAILY=30
 KEEP_WEEKLY=182
 KEEP_MEDIA=56
@@ -25,7 +29,8 @@ ALERT_TO=${IGUANA_BACKUP_ALERT:-john@iguanacomedy.com}
 SCRATCH=iguana_restore_test
 # Tables whose loss would hurt; each must come back with at least as many rows as the live table had just
 # before the dump (rows only ever get added between the count and the dump, never the other way).
-TABLES=(catalog_event catalog_tickettype sales_order sales_orderitem sales_ticket crm_contact catalog_formsubmission)
+TABLES=(catalog_event catalog_tickettype sales_order sales_orderitem sales_ticket crm_contact catalog_formsubmission
+        assistant_conversation assistant_turn)
 
 ts=$(date -u +%Y%m%dT%H%M%SZ)
 log() { logger -t iguana-backup "$*"; echo "$*"; }
@@ -39,7 +44,7 @@ fail() {
 trap 'fail "step at line $LINENO exited non-zero"' ERR
 q() { sudo -u postgres psql -Atq -d "$1" -c "$2"; }
 
-install -d -m 0750 -o root -g iguana "$DIR" "$DIR/daily" "$DIR/weekly" "$DIR/media"
+install -d -m 0750 -o root -g iguana "$DIR" "$DIR/daily" "$DIR/weekly" "$DIR/media" "$DIR/agent"
 
 declare -A live
 for t in "${TABLES[@]}"; do live[$t]=$(q "$DB" "select count(*) from $t") || fail "could not count $t in $DB"; done
@@ -70,10 +75,17 @@ if [ "$(date -u +%u)" = 7 ]; then
   chown root:iguana "$DIR/media/media-$ts.tar.gz"; chmod 0640 "$DIR/media/media-$ts.tar.gz"
 fi
 
+if [ -d "$AGENT_SESSIONS" ]; then
+  tar -czf "$DIR/agent/agent-$ts.tar.gz.part" -C "$(dirname "$AGENT_SESSIONS")" "$(basename "$AGENT_SESSIONS")"
+  mv "$DIR/agent/agent-$ts.tar.gz.part" "$DIR/agent/agent-$ts.tar.gz"
+  chown root:iguana "$DIR/agent/agent-$ts.tar.gz"; chmod 0640 "$DIR/agent/agent-$ts.tar.gz"
+fi
+
 # Prune only now that tonight's copy is proven.
 find "$DIR/daily" -name 'iguana-*.sql.gz' -mtime +"$KEEP_DAILY" -delete
 find "$DIR/weekly" -name 'iguana-*.sql.gz' -mtime +"$KEEP_WEEKLY" -delete
 find "$DIR/media" -name 'media-*.tar.gz' -mtime +"$KEEP_MEDIA" -delete
+find "$DIR/agent" -name 'agent-*.tar.gz' -mtime +"$KEEP_DAILY" -delete
 find "$DIR" -name '*.part' -mmin +120 -delete
 
 echo "$ts $(stat -c %s "$out") bytes, restored ${summary[*]}" > "$DIR/LAST_OK"
