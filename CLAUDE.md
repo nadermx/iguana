@@ -404,3 +404,10 @@ Detail and evidence: **`docs/mail.md`**. `iguana-mail` on the server reads the l
 `~/iguana-migration/` holds the Kintana CSV export (customer PII), the Wayback Machine mirror, and
 `extracted/*.json` + images recovered from the old Framer and Kintana-era sites. Never commit any of it.
 `backend/local_data.json` fixtures are gitignored for the same reason.
+
+## Mail fleet sweep 2026-10-28 (Postfix changes on this box)
+
+Box 38.86.78.36, applied by `~/email/fleetsweep/mailfix.py`, every touched file backed up to `/root/mailfix-backups/20261028/`; `postfix check` clean, reloaded:
+- smtpd_recipient_restrictions += reject_unknown_reverse_client_hostname,reject_non_fqdn_sender,reject_unknown_sender_domain
+
+Why and the fleet numbers: `~/.claude/docs/email-and-stripe.md` "Fleet sweep 2026-10-28".
