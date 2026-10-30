@@ -158,6 +158,10 @@ SHOWS['halloween'] = {
     'link': f'{openmic.SITE}/es/eventos/halloween-at-iguana-2026/',
     # Saturday 31 October, doors 8:30, show 9. The owner asked for the ads to stop at 7pm.
     'ends': dt.datetime(2026, 10, 31, 19, 0, tzinfo=CANCUN),
+    # 🔑 FREE since 12:50 Friday 30 Oct (owner: no sales after 11 hours and "i just need people to show up").
+    # A free show optimises on checkouts started (as the open mic reservations do), builds a new ad set for
+    # the new goal with the unspent budget, and gets fresh creative, because the old copy and flyer said $100.
+    'free': True,
     # Built at 01:50 on the Friday, so about 41 hours of run. The owner's ceiling is 20 paid seats; Manu cost
     # 2,945 MXN for 62 seats (47.5 each, and not every seat came from the ads), so 20 x 50 = 1,000 MXN caps it.
     'lifetime_budget': 100000,            # centavos: 1,000.00 MXN
@@ -168,18 +172,20 @@ SHOWS['halloween'] = {
     'locales': [23, 7],
     # The owner's 13s clip (3:4, "Click para reservar!", the club's address, no phone) placed inside the Story
     # safe band on a blurred copy of itself; the same file serves feed and Reels.
-    'videos': ['halloween-9x16.mp4'],
-    'image': 'halloween-flyer-4x5.jpg',
-    'story_image': 'halloween-flyer-9x16-safe.jpg',
+    # The owner's second cut (9:16, AI voices for the characters, no price on screen) and the flyer relettered
+    # "ENTRADA GRATIS RESERVANDO". The paid ad set's $100 video and flyer stay with it, paused.
+    'videos': ['halloween-free-9x16.mp4'],
+    'image': 'halloween-free-flyer-4x5.jpg',
+    'story_image': 'halloween-free-flyer-9x16-safe.jpg',
     'copy': {
-        'message': ('Halloween en Iguana, sábado 31 de octubre: boletos $100, cómpralos aquí en un minuto.\n\n'
+        'message': ('Halloween en Iguana, sábado 31 de octubre: entrada GRATIS, reserva tu lugar aquí.\n\n'
                     'Show de stand up temático, concurso de disfraces con premio a los mejores, y después DJ y '
                     'karaoke. En Iguana Comedy, en el centro de Playa del Carmen. ¡Ven disfrazado!'),
-        'title': 'Halloween en Iguana · boletos $100',
-        'description': 'Sábado 31 oct · 9:00 pm · Iguana Comedy',
+        'title': 'Halloween en Iguana · entrada gratis',
+        'description': 'Sábado 31 oct · 9:00 pm · reserva gratis',
     },
-    # Checked by eye 2026-10-30: "SABADO 31 DE OCTUBRE", "ENTRADAS $100 MXN", WWW.IGUANACOMEDY.COM and no phone.
-    'flyer': {'date': '31 de octubre', 'price': '$100'},
+    # Checked by eye 2026-10-30: "SABADO 31 DE OCTUBRE", "ENTRADA GRATIS RESERVANDO: WWW.IGUANACOMEDY.COM", no phone.
+    'flyer': {'date': '31 de octubre', 'price': 'gratis'},
 }
 
 
@@ -203,6 +209,13 @@ PAID_CHECKOUT = '1670646004630204'
 # Part of the ad set name, because Meta freezes an ad set's optimisation once published: changing the goal means
 # a new ad set, and a new name is what makes this script build one instead of editing the old.
 GOAL_TAG = 'pagados'
+# A FREE show (SHOW['free']) is a reservation, like an open mic: there is no paid checkout to steer on, so it
+# optimises on checkouts started, the event the open mic reservation ad sets use, and says "reserve" not "buy".
+if SHOW.get('free'):
+    GOAL_TAG = 'reservas'
+PROMOTED = ({'pixel_id': openmic.PIXEL_ID, 'custom_event_type': 'INITIATED_CHECKOUT'} if SHOW.get('free')
+            else {'custom_conversion_id': PAID_CHECKOUT})
+CTA = 'SIGN_UP' if SHOW.get('free') else 'BUY_TICKETS'
 
 CAMPAIGN = f'{SHOW["name"]} · boletos'
 ADSET = f'{SHOW["name"]} · Riviera Maya · boletos · {GOAL_TAG}'
@@ -277,7 +290,7 @@ def ensure_adset(campaign_id, live):
         'destination_type': 'WEBSITE',
         # A custom conversion is promoted ALONE. Adding its pixel_id or any custom_event_type, even the one it is
         # built on, is refused as "combinación no válida" (checked with validate_only, 2026-09-28).
-        'promoted_object': {'custom_conversion_id': PAID_CHECKOUT},
+        'promoted_object': PROMOTED,
         'attribution_spec': [{'event_type': 'CLICK_THROUGH', 'window_days': 1},
                              {'event_type': 'VIEW_THROUGH', 'window_days': 1}],
         'targeting': targeting(),
@@ -297,7 +310,7 @@ def ensure_adset(campaign_id, live):
 
 
 def video_creative(video_id, thumbnail, name):
-    cta = {'type': 'BUY_TICKETS', 'value': {'link': SHOW['link']}}
+    cta = {'type': CTA, 'value': {'link': SHOW['link']}}
     return {
         'name': name,
         'object_story_spec': {
@@ -322,7 +335,7 @@ def flyer_creative(feed_hash, story_hash, name):
             'titles': [{'text': SHOW['copy']['title']}],
             'descriptions': [{'text': SHOW['copy']['description']}],
             'link_urls': [{'website_url': SHOW['link']}],
-            'call_to_action_types': ['BUY_TICKETS'],
+            'call_to_action_types': [CTA],
             'ad_formats': ['SINGLE_IMAGE'],
             'asset_customization_rules': [
                 {'customization_spec': openmic.STORY_PLACEMENTS, 'image_label': {'name': f'{name} story'},
@@ -370,11 +383,16 @@ def preflight():
     add(ev.get('status') == 'on-sale', 'FAIL', f'event is on sale (status: {ev.get("status")})')
     add(ev.get('date') == SHOW['ends'].date().isoformat(), 'FAIL',
         f'event date {ev.get("date")} matches the ad window ending {SHOW["ends"]:%Y-%m-%d}')
-    add(not ev.get('payAtDoor'), 'FAIL', 'tickets are paid on the site, with no pay-at-the-door option')
     first_line = SHOW['copy']['message'].split('\n')[0].lower()
-    add(('$' in first_line or 'mxn' in first_line), 'FAIL', 'the ad\'s FIRST line states the price')
-    add('puerta' not in first_line, 'FAIL', 'the ad does not promise paying at the door')
-    add('$' in (SHOW['copy']['title'] + SHOW['copy']['description']), 'WARN', 'the headline or link line carries the price')
+    if SHOW.get('free'):
+        add(ev.get('priceFrom') == 0, 'FAIL', f'the page sells free seats (priceFrom {ev.get("priceFrom")})')
+        add('gratis' in first_line and '$' not in SHOW['copy']['message'], 'FAIL',
+            'the ad\'s FIRST line says it is free, and the ad names no price')
+    else:
+        add(not ev.get('payAtDoor'), 'FAIL', 'tickets are paid on the site, with no pay-at-the-door option')
+        add(('$' in first_line or 'mxn' in first_line), 'FAIL', 'the ad\'s FIRST line states the price')
+        add('puerta' not in first_line, 'FAIL', 'the ad does not promise paying at the door')
+        add('$' in (SHOW['copy']['title'] + SHOW['copy']['description']), 'WARN', 'the headline or link line carries the price')
     description = (ev.get('description') or '') + ' ' + (ev.get('longDescription') or '')
     add(len(description.strip()) >= 60, 'FAIL', f'the Spanish page says what the show is ({len(description.strip())} chars)')
     add(bool(ev.get('imageUrl')), 'FAIL', 'the page has a poster')
@@ -407,7 +425,8 @@ def cmd_plan(_):
     left = SHOW['ends'] - dt.datetime.now(CANCUN)
     hours = left.total_seconds() / 3600
     print(f'\n{SHOW["name"]} -> {SHOW["link"]}')
-    print(f'  {CAMPAIGN:52} OUTCOME_SALES  optimise paid checkouts ({PAID_CHECKOUT}) via pixel {openmic.PIXEL_ID}')
+    goal = 'checkouts started (free reservations)' if SHOW.get('free') else f'paid checkouts ({PAID_CHECKOUT})'
+    print(f'  {CAMPAIGN:52} OUTCOME_SALES  optimise {goal} via pixel {openmic.PIXEL_ID}')
     print(f'  budget     {SHOW["lifetime_budget"] / 100:,.2f} MXN for the whole run, paced by Meta')
     print(f'  window     now until {SHOW["ends"]:%a %d %b %H:%M} Cancun  ({hours:.1f} hours left)')
     names = ', '.join(i['name'] for i in SHOW.get('interests', [openmic.STANDUP_INTEREST]))
@@ -437,7 +456,13 @@ def cmd_apply(args):
 
     # A replacement ad set carries the old one's ads over by creative, so nothing is uploaded twice and the
     # copy people have already seen stays identical. Then the old ad set stops.
-    if older:
+    if older and SHOW.get('free'):
+        # The old ads say $100, so they are not carried over: the old ad set stops and new ads are built below.
+        for old in older:
+            if old.get('status') != 'PAUSED':
+                openmic.post(old['id'], status='PAUSED')
+                print(f'  retired  {old["id"]}  {old["name"]} (paid goal, priced creative)')
+    elif older:
         status = 'ACTIVE' if args.live else 'PAUSED'
         for old in older:
             for ad in openmic.pages(f'{old["id"]}/ads', fields='id,name,creative{id}'):
