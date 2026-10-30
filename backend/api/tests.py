@@ -2419,12 +2419,15 @@ class SoldOutIsStillAShowTests(ApiTestCase):
     wrong filter. Only DRAFT and CANCELLED are not a show.
     """
 
-    def setUpEvent(self, status):
+    def setUpEvent(self, status, calendar_day=False):
+        """`calendar_day` puts the show on today's Cancun date. `/stats/` lists from that date, while the bar's
+        night runs 6am to 6am, so between midnight and 6am the two disagree about which day "tonight" is."""
         from datetime import datetime, time
 
         from api.tables_views import service_start
 
-        tonight = datetime.combine(service_start().date(), time(21, 0), tzinfo=CANCUN_TZ)
+        day = timezone.now().astimezone(CANCUN_TZ).date() if calendar_day else service_start().date()
+        tonight = datetime.combine(day, time(21, 0), tzinfo=CANCUN_TZ)
         return Event.objects.create(name='Privilegio', slug='privi', status=status, venue=self.venue,
                                     date=tonight, show_time='21:00')
 
@@ -2461,7 +2464,7 @@ class SoldOutIsStillAShowTests(ApiTestCase):
     def test_stats_still_lists_it_and_says_it_is_gone(self):
         from django.contrib.auth import get_user_model
 
-        self.setUpEvent(Event.SOLD_OUT)
+        self.setUpEvent(Event.SOLD_OUT, calendar_day=True)
         self.client.force_login(get_user_model().objects.create_user('dueno2', is_staff=True, is_superuser=True))
         page = self.client.get('/stats/').content.decode()
         self.assertIn('Privilegio', page, 'the night the owner most wants to see must not vanish')
@@ -2473,7 +2476,7 @@ class SoldOutIsStillAShowTests(ApiTestCase):
         """Our rows can say 40 of 80 on a night that is gone, because somebody else sold the rest."""
         from django.contrib.auth import get_user_model
 
-        self.setUpEvent(Event.SOLD_OUT)
+        self.setUpEvent(Event.SOLD_OUT, calendar_day=True)
         self.client.force_login(get_user_model().objects.create_user('dueno3', is_staff=True, is_superuser=True))
         page = self.client.get('/stats/').content.decode()
         self.assertIn('no seats to sell', page)
