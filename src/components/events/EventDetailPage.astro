@@ -81,8 +81,8 @@ const venueName = event ? eventVenueLabel(event) : "";
 const venueAddress = event?.venue?.address?.trim() || "";
 const mapsUrl = event ? eventVenueMapsUrl(event) : null;
 const mapEmbedUrl = event ? eventVenueMapEmbedUrl(event) : null;
-// Open mics sell reservations, so every label says "reserve" rather than "buy".
-const checkoutLabel = event && isOpenMic(event) ? t(locale, "ui.reserveSeat") : t(locale, "ui.buyTickets");
+// Open mics and any free show sell reservations, so every label says "reserve" rather than "buy".
+const checkoutLabel = event && (isOpenMic(event) || event.priceFrom === 0) ? t(locale, "ui.reserveSeat") : t(locale, "ui.buyTickets");
 const externalTicketUrl = !onSiteCheckout && !ticketingBlocked ? event?.ticketUrl ?? null : null;
 const hasIntro = Boolean(
   event && ((event.headliner && event.headliner.name !== headline) || event.description || event.longDescription),

@@ -37,7 +37,7 @@ const priceLabel = isFreeToReserve(evt)
     : null;
 const languageLabel = eventLanguageLabel(evt, locale);
 // Entry to an open mic is free, so the card offers a seat reservation, the same words the hero and the callout use.
-const ticketsLabel = isOpenMic(evt) ? t(locale, "ui.reserveSeat") : t(locale, "ui.buyTickets");
+const ticketsLabel = isOpenMic(evt) || evt.priceFrom === 0 ? t(locale, "ui.reserveSeat") : t(locale, "ui.buyTickets");
 
 // How the night is filling. Never on a show that has already happened, where it would only be a scoreboard.
 const demand = past ? null : demandLine(evt, locale);
