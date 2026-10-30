@@ -91,6 +91,13 @@ const hasIntro = Boolean(
 const gallery = ((event as { gallery?: GalleryPhoto[] } | null)?.gallery ?? []).filter((photo) => photo?.url);
 const galleryBefore = gallery.filter((photo) => photo.section !== "after");
 const galleryAfter = gallery.filter((photo) => photo.section === "after");
+// A web address written into the description (a host's Instagram, say) becomes a link; the rest stays text.
+const linkParts = (text: string) =>
+  text.split(/(https?:\/\/[^\s<>"]+)/g).filter(Boolean).map((part) => {
+    if (!/^https?:\/\//.test(part)) return { text: part, href: null };
+    const href = part.replace(/[.,;:!?)]+$/, "");
+    return { text: href, href, tail: part.slice(href.length) };
+  }).flatMap((part) => ("tail" in part && part.tail ? [part, { text: part.tail, href: null }] : [part]));
 const faq = event ? getEventTicketingFaq(locale, event) : getEventTicketingFaq(locale);
 const reviews = event ? eventReviews(event) : [];
 // Meta ViewContent for this show. The sale itself is reported server-side, from the checkout iframe's own origin.
@@ -340,7 +347,19 @@ const pixelContent = event
                             .split(/\r?\n\s*\r?\n/)
                             .map((chunk) => chunk.trim())
                             .filter((chunk) => chunk.length > 0 && chunk !== event.description?.trim())
-                            .map((chunk) => <p>{chunk}</p>)
+                            .map((chunk) => (
+                              <p class="whitespace-pre-line">
+                                {linkParts(chunk).map((part) =>
+                                  part.href ? (
+                                    <a href={part.href} target="_blank" rel="noopener" class="break-all font-medium text-brand underline underline-offset-2">
+                                      {part.text}
+                                    </a>
+                                  ) : (
+                                    part.text
+                                  ),
+                                )}
+                              </p>
+                            ))
                         : null
                     }
                   </div>
