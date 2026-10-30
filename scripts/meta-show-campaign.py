@@ -152,6 +152,37 @@ SHOWS['manu'] = {
 }
 
 
+SHOWS['halloween'] = {
+    'slug': 'halloween-at-iguana-2026',
+    'name': 'Halloween en Iguana',
+    'link': f'{openmic.SITE}/es/eventos/halloween-at-iguana-2026/',
+    # Saturday 31 October, doors 8:30, show 9. The owner asked for the ads to stop at 7pm.
+    'ends': dt.datetime(2026, 10, 31, 19, 0, tzinfo=CANCUN),
+    # Built at 01:50 on the Friday, so about 41 hours of run. The owner's ceiling is 20 paid seats; Manu cost
+    # 2,945 MXN for 62 seats (47.5 each, and not every seat came from the ads), so 20 x 50 = 1,000 MXN caps it.
+    'lifetime_budget': 100000,            # centavos: 1,000.00 MXN
+    'geo': SHOWS['privilegio']['geo'],
+    'interests': SHOWS['manu']['interests'],
+    # A Spanish show, and the owner asked for Spanish speakers. Privilegio and Manu reached them through Spanish
+    # copy and a Spanish interest only, with no language filter; this one adds it. 23 Español, 7 Español (España).
+    'locales': [23, 7],
+    # The owner's 13s clip (3:4, "Click para reservar!", the club's address, no phone) placed inside the Story
+    # safe band on a blurred copy of itself; the same file serves feed and Reels.
+    'videos': ['halloween-9x16.mp4'],
+    'image': 'halloween-flyer-4x5.jpg',
+    'story_image': 'halloween-flyer-9x16-safe.jpg',
+    'copy': {
+        'message': ('Halloween en Iguana, sábado 31 de octubre: boletos $100, cómpralos aquí en un minuto.\n\n'
+                    'Show de stand up temático, concurso de disfraces con premio a los mejores, y después DJ y '
+                    'karaoke. En Iguana Comedy, en el centro de Playa del Carmen. ¡Ven disfrazado!'),
+        'title': 'Halloween en Iguana · boletos $100',
+        'description': 'Sábado 31 oct · 9:00 pm · Iguana Comedy',
+    },
+    # Checked by eye 2026-10-30: "SABADO 31 DE OCTUBRE", "ENTRADAS $100 MXN", WWW.IGUANACOMEDY.COM and no phone.
+    'flyer': {'date': '31 de octubre', 'price': '$100'},
+}
+
+
 def _chosen_show(argv):
     """`--show <key>` from the command line, taken before argparse because the names below depend on it."""
     if '--show' in argv and argv.index('--show') + 1 < len(argv):
@@ -182,7 +213,7 @@ def iso(when):
 
 
 def targeting():
-    return {
+    spec = {
         'geo_locations': SHOW['geo'],
         'age_min': 18,
         'age_max': 65,
@@ -190,6 +221,9 @@ def targeting():
         'flexible_spec': [{'interests': SHOW.get('interests', [openmic.STANDUP_INTEREST])}],
         'targeting_automation': {'advantage_audience': 0},
     }
+    if SHOW.get('locales'):
+        spec['locales'] = SHOW['locales']
+    return spec
 
 
 def ensure_campaign(live):
