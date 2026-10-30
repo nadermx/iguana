@@ -192,6 +192,20 @@ def past_summary(event, status, room):
     }
 
 
+def gallery_json(event, lang='en'):
+    """The event page's photos, alt text in the reader's language. `section` says whether a photo goes above
+    the description or below it; anything else counts as above."""
+    out = []
+    for item in event.gallery or []:
+        if not isinstance(item, dict) or not item.get('url'):
+            continue
+        alt = (item.get('alt_es') if lang == 'es' else None) or item.get('alt') or ''
+        out.append({'url': media(item['url']), 'alt': alt,
+                    'section': 'after' if item.get('section') == 'after' else 'before',
+                    'width': item.get('width'), 'height': item.get('height')})
+    return out
+
+
 def event_json(event, plan=None, lang='en', demand=None):
     """`demand` is passed in by listing views, which compute it for the whole page at once; a single event
     works it out for itself."""
@@ -241,6 +255,7 @@ def event_json(event, plan=None, lang='en', demand=None):
         'priceCurrency': event.currency.upper() if types else None,
         'tags': event.tags or [],
         'reviews': event.reviews or [],
+        'gallery': gallery_json(event, lang),
         'isShared': False,
         'hostWorkspace': {'slug': 'iguana-comedy', 'name': 'Iguana Comedy'},
         'promoter': None,

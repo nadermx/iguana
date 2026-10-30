@@ -103,6 +103,10 @@ class Event(models.Model):
     age_restriction = models.CharField(max_length=40, blank=True)
     tags = models.JSONField(default=list, blank=True)
     reviews = models.JSONField(default=list, blank=True, help_text='[{"quote": "", "stars": 5, "source": ""}]')
+    # Nullable on purpose: between `migrate` and the worker reload, old code inserts events without this column.
+    gallery = models.JSONField(default=list, blank=True, null=True, help_text=(
+        'Photos shown on the event page, around the description: [{"url": "/media/...", "alt": "", "alt_es": "", '
+        '"section": "before" or "after", "width": 1600, "height": 1067}]'))
     venue = models.ForeignKey(Venue, null=True, blank=True, on_delete=models.SET_NULL, related_name='events')
     venue_label = models.CharField(max_length=200, blank=True, help_text='Venue name as exported, when no Venue row matched.')
     tour = models.ForeignKey(Tour, null=True, blank=True, on_delete=models.SET_NULL, related_name='events')

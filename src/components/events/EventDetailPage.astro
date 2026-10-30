@@ -2,6 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import EventCheckoutWidget from "../EventCheckoutWidget.astro";
 import EventFaq from "./EventFaq.astro";
+import EventGallery, { type GalleryPhoto } from "./EventGallery.astro";
 import type { KintanaPublicEvent } from "@kintana/sdk";
 import {
   eventCollectsPayment,
@@ -86,6 +87,10 @@ const externalTicketUrl = !onSiteCheckout && !ticketingBlocked ? event?.ticketUr
 const hasIntro = Boolean(
   event && ((event.headliner && event.headliner.name !== headline) || event.description || event.longDescription),
 );
+// Photos of the room and the shows around the description (`gallery` is ours, not in the SDK's types).
+const gallery = ((event as { gallery?: GalleryPhoto[] } | null)?.gallery ?? []).filter((photo) => photo?.url);
+const galleryBefore = gallery.filter((photo) => photo.section !== "after");
+const galleryAfter = gallery.filter((photo) => photo.section === "after");
 const faq = event ? getEventTicketingFaq(locale, event) : getEventTicketingFaq(locale);
 const reviews = event ? eventReviews(event) : [];
 // Meta ViewContent for this show. The sale itself is reported server-side, from the checkout iframe's own origin.
@@ -310,6 +315,7 @@ const pixelContent = event
 
         <section class="relative bg-white pb-20 pt-12">
           <div class="mx-auto grid max-w-3xl gap-10 px-4 sm:px-6 lg:px-8">
+            <EventGallery photos={galleryBefore} />
             {hasIntro ? (
             <div class="min-w-0 space-y-10 text-neutral-950">
               {/* Only when nothing further down introduces them. With a bio and a clip below, this line put the
@@ -342,6 +348,7 @@ const pixelContent = event
               }
             </div>
             ) : null}
+            <EventGallery photos={galleryAfter} />
 
             <div class="min-w-0 space-y-10 text-neutral-950">
               {

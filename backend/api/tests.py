@@ -4636,3 +4636,28 @@ class OpenMicToPaidShowTests(ApiTestCase):
         Order.objects.filter(pk=later.pk).update(created_at=mic_order.created_at + timedelta(minutes=5))
         stats = _open_mic_to_paid()
         self.assertEqual((stats['bookers'], stats['crossed'], stats['sold_page']), (2, 1, 1))
+
+
+class EventGalleryTests(ApiTestCase):
+    """Photos around an event's description: alt text in the reader's language, a section for each, and an
+    event without any (every event before the field existed, stored as NULL) still serialising."""
+
+    def test_photos_come_out_with_their_section_and_language(self):
+        self.event.gallery = [
+            {'url': '/media/events/gallery/a.jpg', 'alt': 'The stage', 'alt_es': 'El escenario', 'section': 'before'},
+            {'url': '/media/events/gallery/b.jpg', 'alt': 'The bar', 'section': 'after'},
+            {'url': '', 'alt': 'no url, dropped'},
+            'not a photo',
+        ]
+        self.event.save()
+        en = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']['gallery']
+        self.assertEqual([p['section'] for p in en], ['before', 'after'])
+        self.assertEqual(en[0]['alt'], 'The stage')
+        self.assertTrue(en[0]['url'].startswith('http') and en[0]['url'].endswith('/media/events/gallery/a.jpg'))
+        es = self.api('get', f'/api/public/v1/events/{self.event.id}?locale=es').json()['event']['gallery']
+        self.assertEqual([p['alt'] for p in es], ['El escenario', 'The bar'])
+
+    def test_an_event_without_photos_has_an_empty_gallery(self):
+        Event.objects.filter(pk=self.event.pk).update(gallery=None)
+        data = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']
+        self.assertEqual(data['gallery'], [])

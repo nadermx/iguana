@@ -1,0 +1,51 @@
+---
+// A small collage of photos of the room and the shows, set around an event's description to show what a night
+// here looks like. The photos come from the event's `gallery` (backend `serializers.gallery_json`), each marked
+// to sit above or below the description; the page renders one of these per section.
+export interface GalleryPhoto {
+  url: string;
+  alt: string;
+  section: "before" | "after";
+  width?: number | null;
+  height?: number | null;
+}
+
+interface Props {
+  photos: GalleryPhoto[];
+}
+
+const { photos } = Astro.props;
+// Three photos read as a collage: the first tall on the left, two stacked beside it. Any other count is an even
+// grid, two across, which holds at 320px as well as on a desktop.
+const collage = photos.length === 3;
+---
+
+{
+  photos.length > 0 ? (
+    <div
+      class:list={[
+        "grid gap-2 sm:gap-3",
+        collage ? "grid-cols-2 grid-rows-2" : photos.length === 1 ? "grid-cols-1" : "grid-cols-2",
+      ]}
+    >
+      {photos.map((photo, index) => (
+        <figure
+          class:list={[
+            "overflow-hidden rounded-2xl bg-neutral-900",
+            collage && index === 0 ? "row-span-2 aspect-[3/4] sm:aspect-auto" : "aspect-[4/3]",
+          ]}
+        >
+          <img
+            src={photo.url}
+            alt={photo.alt}
+            width={photo.width ?? undefined}
+            height={photo.height ?? undefined}
+            loading="lazy"
+            decoding="async"
+            class="h-full w-full object-cover"
+          />
+        </figure>
+      ))}
+    </div>
+  ) : null
+}
