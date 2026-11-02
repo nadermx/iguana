@@ -36,7 +36,8 @@ class TicketTypeInline(admin.TabularInline):
     model = TicketType
     extra = 0
     fields = ('name', 'description', 'price_cents', 'member_price_cents', 'member_access', 'capacity',
-              'sold_elsewhere', 'max_per_order', 'pay_at_door', 'active', 'sort_order')
+              'sold_elsewhere', 'max_per_order', 'pay_at_door', 'active', 'sort_order', 'price_change_at',
+              'price_after_cents')
 
 
 class LineupInline(admin.TabularInline):

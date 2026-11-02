@@ -191,6 +191,12 @@ class TicketType(models.Model):
                   'The open mic seat is free; drinks are the sale.')
     active = models.BooleanField(default=True)
     sort_order = models.IntegerField(default=0)
+    # A presale: the price steps up at a set moment (e.g. 150 MXN until the show day, 300 on it). The cron
+    # `apply_price_changes` writes price_after_cents into price_cents when the moment passes, so every reader of
+    # the price (checkout, listings, ads) sees one number and nothing else has to know about schedules.
+    price_change_at = models.DateTimeField(
+        null=True, blank=True, help_text='When the price steps up to "price after" (Cancun time in the admin).')
+    price_after_cents = models.PositiveIntegerField(null=True, blank=True, help_text='The price from then on.')
 
     class Meta:
         ordering = ['sort_order', 'price_cents']

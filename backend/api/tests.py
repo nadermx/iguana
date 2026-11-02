@@ -4664,3 +4664,38 @@ class EventGalleryTests(ApiTestCase):
         Event.objects.filter(pk=self.event.pk).update(gallery=None)
         data = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']
         self.assertEqual(data['gallery'], [])
+
+
+class PresalePriceTests(ApiTestCase):
+    """A presale steps up at a set moment (El Happa: 150 MXN, 300 on the show day) through `apply_price_changes`,
+    which rewrites price_cents once, so the checkout charges the new price with nothing else changed."""
+
+    def run_command(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command('apply_price_changes', stdout=out)
+        return out.getvalue()
+
+    def test_nothing_changes_before_the_moment(self):
+        self.ga.price_change_at = timezone.now() + timedelta(hours=1)
+        self.ga.price_after_cents = 3000
+        self.ga.save()
+        self.assertEqual(self.run_command(), '')
+        self.ga.refresh_from_db()
+        self.assertEqual(self.ga.price_cents, 1000)
+
+    def test_the_price_steps_up_once_and_the_page_shows_it(self):
+        self.ga.price_change_at = timezone.now() - timedelta(minutes=1)
+        self.ga.price_after_cents = 3000
+        self.ga.save()
+        self.assertIn('10 -> 30', self.run_command())
+        self.ga.refresh_from_db()
+        self.assertEqual((self.ga.price_cents, self.ga.price_change_at, self.ga.price_after_cents), (3000, None, None))
+        self.assertEqual(self.run_command(), '', 'a second run changes nothing')
+        self.vip.active = False
+        self.vip.save()
+        data = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']
+        self.assertEqual(data['priceFrom'], 3000, 'the page and the checkout read the new price')

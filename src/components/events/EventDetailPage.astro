@@ -112,7 +112,7 @@ const pixelContent = event
 ---
 
 <Base
-  noindex={!event}
+  noindex={!event || (event as { visibility?: string }).visibility === "UNLISTED"}
   title={event ? `${event.name} · ${t(locale, "events.title")}` : `${t(locale, "events.title")} · Iguana Comedy`}
   description={socialDescription}
   ogImage={socialImage}

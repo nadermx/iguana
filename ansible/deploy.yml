@@ -440,6 +440,18 @@
         # crm/geo.py reopens the file when it changes, so no restart; results go to syslog (journalctl -t iguana-geoip).
         job: "timeout 30m /usr/local/bin/iguana-geoip-refresh {{ geoip_db }} 2>&1 | logger -t iguana-geoip"
 
+    - name: Step presale ticket prices up when their moment comes
+      become: true
+      become_user: "{{ deploy_user }}"
+      cron:
+        name: iguana presale prices
+        user: "{{ deploy_user }}"
+        minute: "*"
+        # Every minute, so a presale that ends at midnight is charged at the new price from 00:01 at the latest.
+        job: >-
+          timeout 2m {{ app_dir }}/backend/venv/bin/python {{ app_dir }}/backend/manage.py
+          apply_price_changes 2>&1 | logger -t iguana-presale-prices
+
     - name: Make web copies of uploaded site videos
       become: true
       become_user: "{{ deploy_user }}"
