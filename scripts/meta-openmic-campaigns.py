@@ -57,6 +57,8 @@ PLAYA = 1540930
 # enough that a week of spend showed the same person the ad 1.7 to 1.8 times; the owner wants 1.3 or under, and
 # with the budget fixed the only honest lever is more people. 40 reaches Puerto Aventuras and Akumal, which is
 # a drive people here actually make for a night out, and matches what the Privilegio ad set already uses.
+# ⚠ The live reservation ad sets are still NAMED '25km' (radius raised in place), so `apply` would not find them
+# by name and would build new ones beside them. Check `status` before running it (found 2026-11-03).
 WIDE_KM, NEAR_KM = 40, 17
 # The interest every campaign this account ever won on used.
 STANDUP_INTEREST = {'id': '6003273904571', 'name': 'Comedia stand up (comedia)'}
@@ -143,7 +145,8 @@ NIGHTS = {
         # 2026-10-28: 600 at the owner's yes, with the night at 10 of 80 seats on the show day.
         'daily_conversions': 60000,
         'daily_reach': 2000,
-        'videos': ['openmic-en-long-9x16.mp4'],
+        # 2026-11-03: the owner's 30s cut (three comics, captions, doors and address on screen) added as video 2.
+        'videos': ['openmic-en-long-9x16.mp4', 'openmic-en-30s-9x16.mp4'],
         'image': 'openmic-en-flyer-4x5.jpg',
         'story_image': 'openmic-en-flyer-9x16-safe.jpg',
         'copy': {
