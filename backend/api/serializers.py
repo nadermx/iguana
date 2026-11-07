@@ -256,6 +256,7 @@ def event_json(event, plan=None, lang='en', demand=None):
         'tags': event.tags or [],
         'reviews': event.reviews or [],
         'gallery': gallery_json(event, lang),
+        'imageUrlCard': media(event.card_image_url) if event.card_image_url else None,
         # UNLISTED: reachable by its link, kept out of every list; the page asks search engines not to index it.
         'visibility': event.visibility,
         'isShared': False,

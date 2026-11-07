@@ -59,7 +59,7 @@ class EventAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('name', 'name_es', 'slug', 'status', 'visibility', 'date', 'doors_open', 'show_time', 'end_time', 'venue', 'venue_label')}),
         ('Listing', {'fields': ('description', 'description_es', 'long_description', 'long_description_es', 'image_url',
-                                'image_url_mobile', 'image_url_es', 'image_url_mobile_es', 'language', 'age_restriction',
+                                'image_url_mobile', 'image_url_es', 'image_url_mobile_es', 'card_image_url', 'language', 'age_restriction',
                                 'tags', 'reviews', 'gallery', 'tour')}),
         # `members_eligible` is deliberately absent: there is no membership to be eligible for, and a checkbox
         # that promises member pricing is a promise the checkout cannot keep.

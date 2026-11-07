@@ -25,8 +25,11 @@ const ticketsHref =
       ? `${detailHref}#tickets`
       : evt.ticketUrl;
 
-const posterMobileSrc = evt.imageUrlMobile?.trim() || evt.imageUrl;
-const posterDesktopSrc = evt.imageUrl?.trim() || evt.imageUrlMobile?.trim();
+// A card photo of its own (`imageUrlCard`, ours, not in the SDK's types) wins at every size: the page keeps the
+// wide poster behind its title while the calendar shows, say, a headshot.
+const cardSrc = (evt as { imageUrlCard?: string | null }).imageUrlCard?.trim() || null;
+const posterMobileSrc = cardSrc || evt.imageUrlMobile?.trim() || evt.imageUrl;
+const posterDesktopSrc = cardSrc || evt.imageUrl?.trim() || evt.imageUrlMobile?.trim();
 
 const priceFormatted = formatMinorUnitsPrice(evt, locale);
 // "From $0 USD" is a worse advert for a free night than the word itself, and it reads like a broken price.

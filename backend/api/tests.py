@@ -4699,3 +4699,19 @@ class PresalePriceTests(ApiTestCase):
         self.vip.save()
         data = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']
         self.assertEqual(data['priceFrom'], 3000, 'the page and the checkout read the new price')
+
+
+class CardImageTests(ApiTestCase):
+    """A listing card can carry its own photo while the page keeps its wide backdrop."""
+
+    def test_the_card_photo_is_separate_from_the_posters(self):
+        self.event.image_url = '/media/events/wide.jpg'
+        self.event.card_image_url = '/media/events/card.jpg'
+        self.event.save()
+        data = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']
+        self.assertTrue(data['imageUrl'].endswith('/media/events/wide.jpg'))
+        self.assertTrue(data['imageUrlCard'].endswith('/media/events/card.jpg'))
+
+    def test_no_card_photo_means_none(self):
+        data = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']
+        self.assertIsNone(data['imageUrlCard'])

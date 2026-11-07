@@ -94,6 +94,10 @@ class Event(models.Model):
     # Posters whose artwork carries Spanish text; blank falls back to the ones above.
     image_url_es = models.CharField(max_length=500, blank=True, help_text='Spanish poster; blank falls back.')
     image_url_mobile_es = models.CharField(max_length=500, blank=True, help_text='Spanish mobile poster.')
+    # The small photo on the calendar and home page cards, when it should differ from the page's wide backdrop
+    # (a headshot on the card, a show photo behind the title). Blank falls back to the posters as before.
+    card_image_url = models.CharField(max_length=500, blank=True, default='', db_default='',
+                                      help_text='Listing card photo; blank uses the posters. Absolute URL or /media/...')
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=DRAFT)
     visibility = models.CharField(max_length=10, choices=VISIBILITY_CHOICES, default='PUBLIC')
     ticketing_type = models.CharField(max_length=10, choices=TICKETING_CHOICES, default='INTERNAL')
