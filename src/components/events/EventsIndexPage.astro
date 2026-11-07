@@ -9,6 +9,7 @@ import NoEventsNearby from "../locations/NoEventsNearby.astro";
 import type { KintanaPublicEvent } from "@kintana/sdk";
 import { heroCityChoices } from "../../content/site";
 import { eventCitySlug, groupEventsByMonth, splitByCurrentMonth } from "../../lib/events";
+import { isOpenMic } from "../../lib/open-mics";
 import { loadEventsForCalendarPages } from "../../lib/events-catalog";
 import { logKintanaError, logKintanaSuccess, kintanaHttpStatus } from "../../lib/kintana-error";
 import { createLocalizedKintanaClient, getKintanaEnv } from "../../lib/kintana-env";
@@ -69,14 +70,20 @@ const { thisMonth, later } = splitByCurrentMonth(upcoming);
 // Never fewer than four up top (owner, 2026-09-26): at the end of a month "this month" can be two nights, and a
 // page that leads with two cards reads as a club with nothing on. Topped up from next month in date order.
 const FEATURED_MIN = 4;
-const featuredCount = Math.max(FEATURED_MIN, thisMonth.length);
-const featured = [...thisMonth, ...later].slice(0, featuredCount);
+// Ticketed shows lead, whatever month they are in, and the open mics follow (owner, 2026-11-07: "we need to sell
+// tickets for this one rather than all the open mics appearing first"; the open mic ads link to their own page).
+// Each group keeps date order. This month's open mics all stay, topped up from later ones to the minimum.
+const ticketed = [...thisMonth, ...later].filter((evt) => !isOpenMic(evt));
+const openMicsThisMonth = thisMonth.filter((evt) => isOpenMic(evt));
+const openMicsTopUp = later.filter((evt) => isOpenMic(evt))
+  .slice(0, Math.max(0, FEATURED_MIN - ticketed.length - openMicsThisMonth.length));
+const featured = [...ticketed, ...openMicsThisMonth, ...openMicsTopUp];
 // The calendar is whole months, so a month that also lends shows to the top still lists all of them: October
 // missing its first two nights read as a broken calendar. Repeating a show is the lesser evil (owner, 2026-09-26).
 // A night leaves both lists by itself the day after it happens, when the API marks it past.
 const calendar = later;
 // "This month" only while it is true; once next month's shows are in the list the heading says "Upcoming".
-const featuredIsThisMonth = featured.length === thisMonth.length;
+const featuredIsThisMonth = featured.every((evt) => thisMonth.includes(evt));
 const calendarGrouped = groupEventsByMonth(calendar, "asc", locale);
 const pastGrouped = groupEventsByMonth(past, "desc", locale);
 const hasAnyShows = upcoming.length > 0 || pastGrouped.size > 0;
