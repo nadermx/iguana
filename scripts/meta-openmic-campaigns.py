@@ -143,7 +143,8 @@ NIGHTS = {
         # Plus the 20 the reach ad set gave back when it was retired.
         # 2026-10-15: live was 200; +25% to 250 with the three-day window, as for Spanish.
         # 2026-10-28: 600 at the owner's yes, with the night at 10 of 80 seats on the show day.
-        'daily_conversions': 60000,
+        # 2026-11-10: 800 (owner), after two days lost to the account's 'Payment required' with 9 of 80 booked.
+        'daily_conversions': 80000,
         'daily_reach': 2000,
         # 2026-11-03: the owner's 30s cut (three comics, captions, doors and address on screen) added as video 2.
         'videos': ['openmic-en-long-9x16.mp4', 'openmic-en-30s-9x16.mp4'],

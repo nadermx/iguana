@@ -25,12 +25,14 @@ the ads on purpose, set `open_mic_ads_autopilot: false` in group_vars and deploy
 
 import json
 import logging
+import pathlib
 import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, time, timedelta
 
 from django.conf import settings
+from django.core.mail import send_mail
 from django.utils import timezone
 
 from catalog.models import Event
@@ -151,6 +153,7 @@ def sync(apply=False, now=None):
         return ['no META_ADS_TOKEN, nothing done']
     campaigns = _campaigns()
     lines = []
+    refused = {}
     for lang, name in CAMPAIGNS.items():
         run, reason, event = decide(lang, now)
         want = 'ACTIVE' if run else 'PAUSED'
@@ -172,10 +175,95 @@ def sync(apply=False, now=None):
                     why = refusal(exc)
                     lines.append(f'{lang}: REFUSED {found["status"]} -> {want}: {why} (night {night})')
                     log.error('Meta refused %s -> %s on %s: %s', found['status'], want, name, why)
+                    refused[lang] = {'why': why, 'want': want, 'night': night}
                     continue
             lines.append(f'{lang}: {found["status"]} -> {want}{"" if apply else " (dry run)"} ({reason}; night {night})')
         if run:
             lines += [f'{lang}: {line}' for line in _resume_inside(found['id'], apply)]
+    if apply:
+        lines += alert_owner(refused, now)
+    return lines
+
+
+# ------------------------------------------------------------------ telling the owner
+#
+# Owner, 2026-11-10: "send me an email when it fails, apart from the notifications that meta does". One mail when
+# Meta starts refusing a campaign (or refuses for a new reason), a reminder every REMIND_EVERY while it goes on, and
+# one when it works again. The state lives in a small file so the every-ten-minutes cron does not mail every run.
+
+REMIND_EVERY = timedelta(hours=12)
+ADS_MANAGER = 'https://adsmanager.facebook.com/adsmanager/manage/campaigns?act=178760798664478'
+BILLING = 'https://business.facebook.com/billing_hub/accounts/details?asset_id=178760798664478'
+
+
+def _alert_state_path():
+    return pathlib.Path(getattr(settings, 'OPEN_MIC_ADS_ALERT_STATE', '/var/lib/iguana/open-mic-ads-alert.json'))
+
+
+def _mail(subject, body):
+    recipients = list(getattr(settings, 'NOTIFY_EMAILS', []) or [])
+    if not recipients:
+        return False
+    try:
+        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients)
+        return True
+    except Exception:  # noqa: BLE001 - a mail failure must not stop the ads being switched
+        log.exception('could not mail the open mic ads alert')
+        return False
+
+
+def alert_owner(refused, now=None):
+    now = now or timezone.now()
+    path = _alert_state_path()
+    try:
+        state = json.loads(path.read_text())
+    except (OSError, ValueError):
+        state = {}
+    lines, changed = [], False
+    for lang, info in refused.items():
+        name = CAMPAIGNS[lang]
+        seen = state.get(lang)
+        new = not seen or seen.get('why') != info['why']
+        due = seen and now - datetime.fromisoformat(seen['mailed']) >= REMIND_EVERY
+        if not (new or due):
+            continue
+        since = now if new else datetime.fromisoformat(seen['since'])
+        verb = 'switch on' if info['want'] == 'ACTIVE' else 'pause'
+        subject = (f'Meta ads: "{name}" could not be switched {"on" if info["want"] == "ACTIVE" else "off"}'
+                   + ('' if new else ' (still)'))
+        body = '\n'.join([
+            f'Meta refused to {verb} the campaign "{name}" (night {info["night"]}).',
+            '',
+            f'Meta says: {info["why"]}',
+            '',
+            f'This has been going on since {timezone.localtime(since):%a %d %b %H:%M} (Playa time). The server tries '
+            'again every 10 minutes and will mail again when it works.',
+            '',
+            'If it mentions payment ("Pago necesario", "Payment required"), the ad account needs its card or PayPal '
+            'checked; nothing will run until then:',
+            BILLING,
+            '',
+            f'Ads Manager: {ADS_MANAGER}',
+            '',
+            'Iguana Comedy',
+        ])
+        if _mail(subject, body):
+            state[lang] = {'why': info['why'], 'since': since.isoformat(), 'mailed': now.isoformat()}
+            changed = True
+            lines.append(f'{lang}: owner mailed ({"new refusal" if new else "reminder"})')
+    for lang in [lang for lang in state if lang not in refused]:
+        name = CAMPAIGNS.get(lang, lang)
+        if _mail(f'Meta ads: "{name}" is working again',
+                 f'Meta accepted the switch for "{name}" again, so the open mic ads are back on schedule.\n\n'
+                 f'Ads Manager: {ADS_MANAGER}\n\nIguana Comedy'):
+            lines.append(f'{lang}: owner mailed (working again)')
+        del state[lang]
+        changed = True
+    if changed:
+        try:
+            path.write_text(json.dumps(state))
+        except OSError:
+            log.exception('could not save the open mic ads alert state to %s', path)
     return lines
 
 

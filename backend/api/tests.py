@@ -4122,6 +4122,15 @@ class OpenMicAdsAutopilotTests(ApiTestCase):
     """
 
     def setUp(self):
+        super().setUp()
+        import tempfile
+
+        self._alert_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self._alert_dir.cleanup)
+        override = self.settings(OPEN_MIC_ADS_ALERT_STATE=f'{self._alert_dir.name}/alert.json',
+                                 NOTIFY_EMAILS=['owner@example.com'])
+        override.enable()
+        self.addCleanup(override.disable)
         self.day = (timezone.now().astimezone(CANCUN_TZ) + timedelta(days=3)).date()
         self.mic = Event.objects.create(name='Open Mic', slug='mic-ads', status=Event.ACTIVE, venue=self.venue,
                                         language='es', tags=['open-mic'], doors_open='20:00', show_time='21:00',
@@ -4228,6 +4237,45 @@ class OpenMicAdsAutopilotTests(ApiTestCase):
             lines = open_mic_ads.sync(apply=True, now=self.at(9, days=-2))
         self.assertIn('REFUSED PAUSED -> ACTIVE: HTTP 400: Pago necesario / Actualiza tu método de pago.', lines[0])
         self.assertTrue(any(line.startswith('en:') for line in lines), 'the English series is still reported')
+
+    def test_the_owner_is_mailed_once_reminded_and_told_when_it_works_again(self):
+        """Owner, 2026-11-10: an email when Meta refuses, apart from Meta's own notifications."""
+        import io
+        import urllib.error
+
+        from crm import open_mic_ads
+
+        refusing = [True]
+
+        def graph(method, path, **params):
+            if method == 'GET' and path.endswith('/adsets'):
+                return {'data': []}
+            if method == 'GET':
+                status = 'PAUSED' if refusing[0] else 'ACTIVE'
+                return {'data': [{'id': '1', 'name': open_mic_ads.CAMPAIGNS['es'], 'status': status},
+                                 {'id': '2', 'name': open_mic_ads.CAMPAIGNS['en'], 'status': 'PAUSED'}]}
+            if refusing[0] and path == '1':
+                body = json.dumps({'error': {'error_user_title': 'Pago necesario', 'message': 'x'}}).encode()
+                raise urllib.error.HTTPError('u', 400, 'Bad Request', {}, io.BytesIO(body))
+            return {'success': True}
+
+        start = self.at(9, days=-2)
+        with self.settings(META_ADS_TOKEN='t'), patch.object(open_mic_ads, '_graph', side_effect=graph):
+            first = open_mic_ads.sync(apply=True, now=start)
+            self.assertEqual(len(mail.outbox), 1, first)
+            self.assertIn('could not be switched on', mail.outbox[0].subject)
+            self.assertIn('Pago necesario', mail.outbox[0].body)
+            open_mic_ads.sync(apply=True, now=start + timedelta(minutes=10))
+            self.assertEqual(len(mail.outbox), 1, 'not every ten minutes')
+            open_mic_ads.sync(apply=True, now=start + timedelta(hours=12, minutes=10))
+            self.assertEqual(len(mail.outbox), 2)
+            self.assertIn('(still)', mail.outbox[1].subject)
+            refusing[0] = False
+            open_mic_ads.sync(apply=True, now=start + timedelta(hours=13))
+            self.assertEqual(len(mail.outbox), 3)
+            self.assertIn('working again', mail.outbox[2].subject)
+            open_mic_ads.sync(apply=True, now=start + timedelta(hours=14))
+            self.assertEqual(len(mail.outbox), 3)
 
     def test_a_hand_pause_inside_the_campaign_is_undone_in_the_window_and_only_on_the_live_ad_set(self):
         """2026-10-19: the campaigns stayed ACTIVE while the ad set (es) and the ads (en) were paused by hand,
