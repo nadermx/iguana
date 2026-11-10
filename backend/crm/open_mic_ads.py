@@ -25,6 +25,7 @@ the ads on purpose, set `open_mic_ads_autopilot: false` in group_vars and deploy
 
 import json
 import logging
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, time, timedelta
@@ -114,6 +115,20 @@ def _graph(method, path, **params):
         return json.load(response)
 
 
+def refusal(exc):
+    """Meta's own words from a refused Graph call: the message the Ads Manager would show, else the raw body."""
+    try:
+        body = exc.read().decode(errors='replace')
+    except Exception:  # noqa: BLE001 - an unreadable body still has a status code
+        return f'HTTP {exc.code}'
+    try:
+        error = json.loads(body).get('error') or {}
+    except ValueError:
+        return f'HTTP {exc.code}: {body[:300]}'
+    parts = [error.get('error_user_title'), error.get('error_user_msg') or error.get('message')]
+    return f'HTTP {exc.code}: ' + ' / '.join(p for p in parts if p)
+
+
 def _campaigns():
     """{name: {'id', 'status'}} for the account, one read per run (the rate limit clears only by waiting)."""
     found, after = {}, None
@@ -149,7 +164,15 @@ def sync(apply=False, now=None):
             lines.append(f'{lang}: {want} already ({reason}; night {night})')
         else:
             if apply:
-                _graph('POST', found['id'], status=want)
+                try:
+                    _graph('POST', found['id'], status=want)
+                except urllib.error.HTTPError as exc:
+                    # Say WHY, and carry on with the other series. 2026-11-09/10: the account sat in "Payment
+                    # required" for 36 hours, every switch-on was refused, and the log said only "400 Bad Request".
+                    why = refusal(exc)
+                    lines.append(f'{lang}: REFUSED {found["status"]} -> {want}: {why} (night {night})')
+                    log.error('Meta refused %s -> %s on %s: %s', found['status'], want, name, why)
+                    continue
             lines.append(f'{lang}: {found["status"]} -> {want}{"" if apply else " (dry run)"} ({reason}; night {night})')
         if run:
             lines += [f'{lang}: {line}' for line in _resume_inside(found['id'], apply)]

@@ -4206,6 +4206,29 @@ class OpenMicAdsAutopilotTests(ApiTestCase):
         self.assertIn('PAUSED -> ACTIVE (dry run)', dry[0])
         self.assertEqual(posts, [('1', {'status': 'ACTIVE'})])
 
+    def test_a_refused_switch_says_why_and_the_other_series_still_runs(self):
+        """2026-11-09: the ad account sat in "Payment required"; every switch-on was a bare 400 in the log and
+        the traceback stopped the run before the other series was looked at."""
+        import io
+        import urllib.error
+
+        from crm import open_mic_ads
+
+        def graph(method, path, **params):
+            if method == 'GET' and path.endswith('/adsets'):
+                return {'data': []}
+            if method == 'GET':
+                return {'data': [{'id': '1', 'name': open_mic_ads.CAMPAIGNS['es'], 'status': 'PAUSED'},
+                                 {'id': '2', 'name': open_mic_ads.CAMPAIGNS['en'], 'status': 'PAUSED'}]}
+            body = json.dumps({'error': {'message': 'Invalid parameter', 'error_user_title': 'Pago necesario',
+                                         'error_user_msg': 'Actualiza tu método de pago.'}}).encode()
+            raise urllib.error.HTTPError('u', 400, 'Bad Request', {}, io.BytesIO(body))
+
+        with self.settings(META_ADS_TOKEN='t'), patch.object(open_mic_ads, '_graph', side_effect=graph):
+            lines = open_mic_ads.sync(apply=True, now=self.at(9, days=-2))
+        self.assertIn('REFUSED PAUSED -> ACTIVE: HTTP 400: Pago necesario / Actualiza tu método de pago.', lines[0])
+        self.assertTrue(any(line.startswith('en:') for line in lines), 'the English series is still reported')
+
     def test_a_hand_pause_inside_the_campaign_is_undone_in_the_window_and_only_on_the_live_ad_set(self):
         """2026-10-19: the campaigns stayed ACTIVE while the ad set (es) and the ads (en) were paused by hand,
         and nothing spent for days while the log said "ACTIVE already"."""
