@@ -4238,6 +4238,29 @@ class OpenMicAdsAutopilotTests(ApiTestCase):
         self.assertIn('REFUSED PAUSED -> ACTIVE: HTTP 400: Pago necesario / Actualiza tu método de pago.', lines[0])
         self.assertTrue(any(line.startswith('en:') for line in lines), 'the English series is still reported')
 
+    def test_a_retired_ad_stays_paused(self):
+        """2026-11-11: the owner paused a flyer with the wrong show time; the autopilot must not bring it back."""
+        from crm import open_mic_ads
+
+        posts = []
+
+        def graph(method, path, **params):
+            if method == 'GET' and path.endswith('/adsets'):
+                return {'data': [{'id': '11', 'name': 'Tuesdays · reservations · checkout', 'status': 'ACTIVE',
+                                  'ads': {'data': [
+                                      {'id': '111', 'name': 'flyer · retired', 'status': 'PAUSED'},
+                                      {'id': '112', 'name': 'video', 'status': 'PAUSED'}]}}]}
+            if method == 'GET':
+                return {'data': [{'id': '1', 'name': open_mic_ads.CAMPAIGNS['es'], 'status': 'ACTIVE'},
+                                 {'id': '2', 'name': open_mic_ads.CAMPAIGNS['en'], 'status': 'PAUSED'}]}
+            posts.append((path, params))
+            return {'success': True}
+
+        with self.settings(META_ADS_TOKEN='t'), patch.object(open_mic_ads, '_graph', side_effect=graph):
+            open_mic_ads.sync(apply=True, now=self.at(9, days=-2))
+        self.assertIn(('112', {'status': 'ACTIVE'}), posts)
+        self.assertNotIn(('111', {'status': 'ACTIVE'}), posts)
+
     def test_the_owner_is_mailed_once_reminded_and_told_when_it_works_again(self):
         """Owner, 2026-11-10: an email when Meta refuses, apart from Meta's own notifications."""
         import io

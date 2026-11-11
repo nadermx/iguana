@@ -53,6 +53,8 @@ STOP_BEFORE_SHOW = timedelta(hours=1)
 RUN_DAYS = 3
 # The builder's current ad set in each campaign ends with this (its EVENT_TAG for INITIATED_CHECKOUT).
 LIVE_ADSET_SUFFIX = ' · checkout'
+# Ads the owner retired by hand: rename the ad to end in this and the autopilot leaves it paused.
+RETIRED_SUFFIX = ' · retired'
 FALLBACK_SHOW_TIME = time(21, 0)
 
 
@@ -279,7 +281,10 @@ def _resume_inside(campaign_id, apply):
     lines = []
     for adset in live:
         paused = [adset] if adset['status'] == 'PAUSED' else []
-        paused += [ad for ad in (adset.get('ads') or {}).get('data', []) if ad['status'] == 'PAUSED']
+        # An ad renamed to end in RETIRED_SUFFIX was taken out on purpose (2026-11-11: a flyer with the wrong show
+        # time) and stays paused; every other pause inside the window is still undone.
+        paused += [ad for ad in (adset.get('ads') or {}).get('data', [])
+                   if ad['status'] == 'PAUSED' and not ad['name'].endswith(RETIRED_SUFFIX)]
         for row in paused:
             if apply:
                 _graph('POST', row['id'], status='ACTIVE')
