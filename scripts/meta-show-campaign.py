@@ -193,7 +193,8 @@ SHOWS['zach'] = {
     'slug': 'zach-mcgovern-playa-del-carmen',
     'name': 'Zach McGovern',
     'link': f'{openmic.SITE}/en/events/zach-mcgovern-playa-del-carmen/',
-    # Saturday 21 November, doors 7:30, show 8. The owner asked for the ads to stop at 6:30pm.
+    # Saturday 21 November, doors 7:00 (moved from 7:30 to match the clips, owner 2026-11-14), show 8. The
+    # owner asked for the ads to stop at 6:30pm.
     'ends': dt.datetime(2026, 11, 21, 18, 30, tzinfo=CANCUN),
     # 75 seats at 250 MXN, built Saturday 14 Nov (7.7 days). An ENGLISH show: the Andre de Freitas English ad set
     # in Playa (Feb 2026, old pixel) paid about 300 MXN a Meta-reported purchase and the interest-led one about 160;
@@ -208,16 +209,14 @@ SHOWS['zach'] = {
     'locales': openmic.ENGLISH_LOCALES,
     'interests': [],
     # The owner's three edits (20s airport, 14s spirit, 17s zoo), each with date, club, address, "get your tickets".
-    # The zoo cut says "DOORS OPEN 7:00" while the page says 7:30, so its ad is built PAUSED until the owner says
-    # which is right (2026-11-14).
+    # The zoo cut said "DOORS OPEN 7:00" against the page's 7:30; the owner chose 7:00 and all three run.
     'videos': ['zach-airport-9x16.mp4', 'zach-spirit-9x16.mp4', 'zach-zoo-9x16.mp4'],
-    'paused_videos': ['zach-zoo-9x16.mp4'],
     'image': None,
     'story_image': None,
     'copy': {
         'message': ('Zach McGovern, Saturday Nov 21: tickets 250 MXN, get yours here in a minute.\n\n'
                     'New York stand-up (The New York Comedy Club, The Stand, MTV) in Playa del Carmen for one night. '
-                    'In English, at Iguana Comedy Club in el centro. Doors 7:30, show 8:00, 75 seats.'),
+                    'In English, at Iguana Comedy Club in el centro. Doors 7:00, show 8:00, 75 seats.'),
         'title': 'Zach McGovern · tickets $250 MXN',
         'description': 'Sat Nov 21 · 8:00 pm · Iguana Comedy',
     },
