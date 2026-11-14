@@ -189,6 +189,44 @@ SHOWS['halloween'] = {
 }
 
 
+SHOWS['zach'] = {
+    'slug': 'zach-mcgovern-playa-del-carmen',
+    'name': 'Zach McGovern',
+    'link': f'{openmic.SITE}/en/events/zach-mcgovern-playa-del-carmen/',
+    # Saturday 21 November, doors 7:30, show 8. The owner asked for the ads to stop at 6:30pm.
+    'ends': dt.datetime(2026, 11, 21, 18, 30, tzinfo=CANCUN),
+    # 75 seats at 250 MXN, built Saturday 14 Nov (7.7 days). An ENGLISH show: the Andre de Freitas English ad set
+    # in Playa (Feb 2026, old pixel) paid about 300 MXN a Meta-reported purchase and the interest-led one about 160;
+    # the English open mic pays about twice the Spanish one per reservation. Spanish paid seats here cost 27 to 48,
+    # so about 80 a seat is the planning figure: 75 x 80 = 6,000 MXN for the whole run, checked mid-week.
+    'lifetime_budget': 600000,            # centavos: 6,000.00 MXN
+    # Playa and the drive people make (Puerto Aventuras, Akumal); Cancun and Tulum have their own nights.
+    'geo': {'cities': [{'key': openmic.PLAYA, 'radius': 40, 'distance_unit': 'kilometer'}],
+            'location_types': ['home', 'recent']},
+    # English speakers (US, UK), the Andre de Freitas targeting. No interests on top: the language filter already
+    # makes the audience small, and an interest list would only shrink it again (Meta ORs inside one list).
+    'locales': openmic.ENGLISH_LOCALES,
+    'interests': [],
+    # The owner's three edits (20s airport, 14s spirit, 17s zoo), each with date, club, address, "get your tickets".
+    # The zoo cut says "DOORS OPEN 7:00" while the page says 7:30, so its ad is built PAUSED until the owner says
+    # which is right (2026-11-14).
+    'videos': ['zach-airport-9x16.mp4', 'zach-spirit-9x16.mp4', 'zach-zoo-9x16.mp4'],
+    'paused_videos': ['zach-zoo-9x16.mp4'],
+    'image': None,
+    'story_image': None,
+    'copy': {
+        'message': ('Zach McGovern, Saturday Nov 21: tickets 250 MXN, get yours here in a minute.\n\n'
+                    'New York stand-up (The New York Comedy Club, The Stand, MTV) in Playa del Carmen for one night. '
+                    'In English, at Iguana Comedy Club in el centro. Doors 7:30, show 8:00, 75 seats.'),
+        'title': 'Zach McGovern · tickets $250 MXN',
+        'description': 'Sat Nov 21 · 8:00 pm · Iguana Comedy',
+    },
+    # Checked by eye 2026-11-14 in all three clips: "SATURDAY NOVEMBER 21", "IGUANA COMEDY CLUB", "CALLE 6 NTE,
+    # AV 20", "GET YOUR TICKETS HERE", no phone. No price on screen; the copy carries it.
+    'flyer': {'date': 'November 21', 'price': '250 MXN (in the copy; none on screen)'},
+}
+
+
 def _chosen_show(argv):
     """`--show <key>` from the command line, taken before argparse because the names below depend on it."""
     if '--show' in argv and argv.index('--show') + 1 < len(argv):
@@ -231,9 +269,11 @@ def targeting():
         'age_min': 18,
         'age_max': 65,
         'location_types': ['home', 'recent'],
-        'flexible_spec': [{'interests': SHOW.get('interests', [openmic.STANDUP_INTEREST])}],
         'targeting_automation': {'advantage_audience': 0},
     }
+    interests = SHOW.get('interests', [openmic.STANDUP_INTEREST])
+    if interests:
+        spec['flexible_spec'] = [{'interests': interests}]
     if SHOW.get('locales'):
         spec['locales'] = SHOW['locales']
     return spec
@@ -406,8 +446,8 @@ def preflight():
             f'the flyer sends bookings to {flyer["booking_phone"]} instead of the page' +
             (' (accepted for this run)' if flyer.get('accept_booking_phone') else ''))
     interests = [i['name'] for i in SHOW.get('interests', [openmic.STANDUP_INTEREST])]
-    add(len(interests) > 1, 'WARN', f'targeting is wider than stand-up alone ({len(interests)} interest(s))')
-    missing = [f for f in [*SHOW['videos'], SHOW['image'], SHOW['story_image']] if not (openmic.CREATIVE_DIR / f).exists()]
+    add(len(interests) != 1, 'WARN', f'targeting is wider than stand-up alone ({len(interests) or "no"} interest(s))')
+    missing = [f for f in [f for f in [*SHOW['videos'], SHOW['image'], SHOW['story_image']] if f] if not (openmic.CREATIVE_DIR / f).exists()]
     add(not missing, 'FAIL', 'creative files present' + (f' (missing {", ".join(missing)})' if missing else ''))
     return out
 
@@ -430,9 +470,15 @@ def cmd_plan(_):
     print(f'  budget     {SHOW["lifetime_budget"] / 100:,.2f} MXN for the whole run, paced by Meta')
     print(f'  window     now until {SHOW["ends"]:%a %d %b %H:%M} Cancun  ({hours:.1f} hours left)')
     names = ', '.join(i['name'] for i in SHOW.get('interests', [openmic.STANDUP_INTEREST]))
-    print(f'  targeting  Playa del Carmen 40km + Cancún 25km, home+recent, 18 to 65, any of: {names}')
-    print(f'  creative   {", ".join(SHOW["videos"])}, {SHOW["image"]}')
-    print(f'             {SHOW["story_image"]} for Story and Reels')
+    places = ' + '.join(f'{"Playa del Carmen" if c["key"] == openmic.PLAYA else c["key"]} {c["radius"]}km'
+                        for c in SHOW['geo']['cities'])
+    langs = f', locales {SHOW["locales"]}' if SHOW.get('locales') else ''
+    print(f'  targeting  {places}, home+recent, 18 to 65{langs}, interests: {names or "none (broad)"}')
+    print(f'  creative   {", ".join(SHOW["videos"])}' + (f', {SHOW["image"]}' if SHOW['image'] else ''))
+    if SHOW['story_image']:
+        print(f'             {SHOW["story_image"]} for Story and Reels')
+    if SHOW.get('paused_videos'):
+        print(f'  held back  {", ".join(SHOW["paused_videos"])} (built paused)')
     if hours <= 0:
         print('\n  the window has already closed; nothing would deliver')
 
@@ -442,7 +488,7 @@ def cmd_apply(args):
     if not cmd_preflight(args) and not args.force:
         sys.exit('refusing to spend on a show that fails preflight (fix it, or --force with a reason)')
     openmic.PATIENT = True
-    missing = [f for f in [*SHOW['videos'], SHOW['image'], SHOW['story_image']]
+    missing = [f for f in [f for f in [*SHOW['videos'], SHOW['image'], SHOW['story_image']] if f]
                if not (openmic.CREATIVE_DIR / f).exists()]
     if missing:
         sys.exit(f'creative missing from {openmic.CREATIVE_DIR}: {", ".join(missing)}')
@@ -482,12 +528,15 @@ def cmd_apply(args):
         video_id = openmic.upload_video(openmic.CREATIVE_DIR / filename)
         openmic.wait_for_video(video_id)
         creative = video_creative(video_id, openmic.video_thumbnail(video_id), f'{CAMPAIGN} · video {index}')
-        openmic.try_ad(blocked, 'es', 'show', adset_id, creative, f'{ADSET} · video {index}', args.live)
+        # A clip held back (SHOW['paused_videos']) is built PAUSED so it is ready to switch on, never live.
+        live = args.live and filename not in SHOW.get('paused_videos', [])
+        openmic.try_ad(blocked, 'es', 'show', adset_id, creative, f'{ADSET} · video {index}', live)
 
-    feed = openmic.upload_image(openmic.CREATIVE_DIR / SHOW['image'])
-    story = openmic.upload_image(openmic.CREATIVE_DIR / SHOW['story_image'])
-    openmic.try_ad(blocked, 'es', 'show', adset_id,
-                   flyer_creative(feed, story, f'{CAMPAIGN} · flyer'), f'{ADSET} · flyer', args.live)
+    if SHOW['image']:
+        feed = openmic.upload_image(openmic.CREATIVE_DIR / SHOW['image'])
+        story = openmic.upload_image(openmic.CREATIVE_DIR / SHOW['story_image'])
+        openmic.try_ad(blocked, 'es', 'show', adset_id,
+                       flyer_creative(feed, story, f'{CAMPAIGN} · flyer'), f'{ADSET} · flyer', args.live)
 
     if blocked:
         print(f'\n{len(blocked)} ad(s) could not be created:')
