@@ -196,7 +196,9 @@
         - "smtp_balance_inet_protocols = no"
         - "mynetworks = 127.0.0.0/8 [::1]/128"
         - "smtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination"
-        - "smtpd_recipient_restrictions = permit_mynetworks, reject_unauth_destination, reject_unknown_recipient_domain, check_sender_access hash:/etc/postfix/blocked_senders"
+        # The last three before reject_unknown_recipient_domain came from the fleet mail sweep of 2026-10-28
+        # (docs/mail.md), applied on the box by hand. Without them here, the next deploy would undo it.
+        - "smtpd_recipient_restrictions = permit_mynetworks, reject_unauth_destination, reject_unknown_reverse_client_hostname, reject_non_fqdn_sender, reject_unknown_sender_domain, reject_unknown_recipient_domain, check_sender_access hash:/etc/postfix/blocked_senders"
         - "smtpd_helo_required = yes"
         - "disable_vrfy_command = yes"
         - "message_size_limit = 26214400"

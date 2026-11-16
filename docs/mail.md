@@ -207,3 +207,12 @@ Marketing mail must go through `crm.mail.send_marketing` (or `manage.py send_new
 `--send`), which drops unsubscribed contacts and attaches the unsubscribe footer and `List-Unsubscribe` headers
 itself. `crm/unsubscribe.py` signs the per-address token; `/unsubscribe/<token>` serves the bilingual page and
 accepts Gmail's cookie-less one-click POST. Receipts and sign-in codes deliberately carry no unsubscribe link.
+
+## Fleet mail sweep, 2026-10-28
+
+Box 38.86.78.36, applied by `~/email/fleetsweep/mailfix.py`, every touched file backed up to `/root/mailfix-backups/20261028/`; `postfix check` clean, reloaded:
+- smtpd_recipient_restrictions += reject_unknown_reverse_client_hostname,reject_non_fqdn_sender,reject_unknown_sender_domain
+
+Why and the fleet numbers: `~/.claude/docs/email-and-stripe.md` "Fleet sweep 2026-10-28".
+
+It was applied on the box by hand, so `ansible/mail.yml` was later brought into line (2026-11-16); before that, the next dev-box deploy would have removed the three restrictions.
