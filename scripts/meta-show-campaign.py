@@ -211,8 +211,9 @@ SHOWS['zach'] = {
     # The owner's three edits (20s airport, 14s spirit, 17s zoo), each with date, club, address, "get your tickets".
     # The zoo cut said "DOORS OPEN 7:00" against the page's 7:30; the owner chose 7:00 and all three run.
     'videos': ['zach-airport-9x16.mp4', 'zach-spirit-9x16.mp4', 'zach-zoo-9x16.mp4'],
-    'image': None,
-    'story_image': None,
+    # The owner's flyer, added 2026-11-15 as a fourth ad (Sat Nov 21, 8:00 pm, tickets on the site, no doors time).
+    'image': 'zach-flyer-4x5.jpg',
+    'story_image': 'zach-flyer-9x16-safe.jpg',
     'copy': {
         'message': ('Zach McGovern, Saturday Nov 21: tickets 250 MXN, get yours here in a minute.\n\n'
                     'New York stand-up (The New York Comedy Club, The Stand, MTV) in Playa del Carmen for one night. '
