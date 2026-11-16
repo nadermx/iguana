@@ -191,8 +191,10 @@ Andrew has his own SSH login, `andrew` (sudo, password set by him on first login
 not in ansible). Remove it with `userdel -r andrew` if he leaves.
 The app is `/home/www/iguana`; the server's venv is **`backend/venv`**, not `.venv` as locally. A one-off query:
 copy a script up and `ansible all --become --become-user iguana -m shell -a "cd /home/www/iguana/backend &&
-venv/bin/python manage.py shell < /tmp/q.py" </dev/null` (without `</dev/null` ansible can abort on a
-non-blocking stdin).
+venv/bin/python manage.py shell < /tmp/q_<something unique>.py" </dev/null` (without `</dev/null` ansible can abort on a
+non-blocking stdin). Give the file a unique name and delete it after: a stale `/tmp/q.py` owned by another user
+already sits on the box, so copying over it fails with "Operation not permitted" and the shell then runs the
+OLD script.
 nginx fronts supervisor programs `iguana:iguana-web` (Node, :3000) and `iguana:iguana-api` (gunicorn, :8001);
 Postgres `iguana`. `iguanacomedy.com` is canonical (DNS on Cloudflare, records must stay DNS-only: proxied records
 pointing at Cloudflare IPs caused the old Error 1000); `iguanacomedy.mx` 301s to it; API at
@@ -295,7 +297,9 @@ and a new string should go through one of them rather than be written inline:
 ### Meta and TikTok ads
 
 **Read `docs/meta-ads.md` before touching a campaign** (IDs, scripts, targeting, Graph API traps, and how `/stats/`
-reports spend); TikTok is in `docs/tiktok-ads.md`. Operator scripts read `~/.credentials/meta/iguanacomedy/token`;
+reports spend); TikTok is in `docs/tiktok-ads.md`. **There is no Google Ads account yet** (2026-11-16): the club's
+Google account for hello@ does not exist, and a scripted Google signup stops at a phone QR check, so a person
+creates it. The Maps Business Profile exists under some other Google login. Operator scripts read `~/.credentials/meta/iguanacomedy/token`;
 ad account `act_178760798664478`, pixel `2122037578734069`. Always:
 
 - **The goal is full nights: 80 reservations on an open mic, 80 on a paid show.** An underfilled night with a live
