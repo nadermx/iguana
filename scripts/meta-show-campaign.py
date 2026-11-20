@@ -494,7 +494,9 @@ def cmd_plan(_):
     places = ' + '.join(f'{"Playa del Carmen" if c["key"] == openmic.PLAYA else c["key"]} {c["radius"]}km'
                         for c in SHOW['geo']['cities'])
     langs = f', locales {SHOW["locales"]}' if SHOW.get('locales') else ''
-    print(f'  targeting  {places}, home+recent, 18 to 65{langs}, interests: {names or "none (broad)"}')
+    ages = SHOW.get('age', (18, 65))
+    print(f'  targeting  {places}, home+recent, {ages[0]} to {ages[1]}{langs}, interests: {names or "none (broad)"}'
+          + (', Facebook and Instagram only' if SHOW.get('placements') else ''))
     print(f'  creative   {", ".join(SHOW["videos"])}' + (f', {SHOW["image"]}' if SHOW['image'] else ''))
     if SHOW['story_image']:
         print(f'             {SHOW["story_image"]} for Story and Reels')
