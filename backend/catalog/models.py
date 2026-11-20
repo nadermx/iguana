@@ -103,6 +103,12 @@ class Event(models.Model):
                                    help_text='Replaces the seat counter, e.g. "Only 22% of tickets remaining."')
     demand_note_es = models.CharField(max_length=120, blank=True, default='', db_default='',
                                       help_text='Spanish; blank falls back to the English note.')
+    # A note may carry {pct}: it starts at demand_note_pct when demand_note_from seats were taken and drops one
+    # point per seat sold after that, never below 1 (owner, 2026-11-20: "reduce 1% for each next purchase").
+    demand_note_pct = models.PositiveSmallIntegerField(null=True, blank=True,
+                                                       help_text='Starting percentage for {pct} in the note.')
+    demand_note_from = models.PositiveIntegerField(null=True, blank=True,
+                                                   help_text='Seats taken when that percentage was set.')
     card_image_url = models.CharField(max_length=500, blank=True, default='', db_default='',
                                       help_text='Listing card photo; blank uses the posters. Absolute URL or /media/...')
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=DRAFT)
@@ -143,6 +149,13 @@ class Event(models.Model):
     @property
     def is_public(self):
         return self.status != self.DRAFT and self.visibility != 'UNLISTED'
+
+    def demand_note_for(self, lang, taken):
+        note = self._localized(lang, self.demand_note_es, self.demand_note)
+        if note and '{pct}' in note and self.demand_note_pct is not None:
+            sold_since = max(0, (taken or 0) - (self.demand_note_from or 0))
+            note = note.replace('{pct}', str(max(1, self.demand_note_pct - sold_since)))
+        return note or None
 
     def _localized(self, lang, spanish, english):
         return spanish if lang == 'es' and spanish else english

@@ -258,6 +258,7 @@ def ticket_detail(request, order_id):
 
 def fan_event_json(event, contact, lang='en'):
     membership = current_membership(contact)
+    room = demand(event)
     ticket_url = f'{settings.BACKEND_URL}/embed/event/{event.id}'
     venue = event.venue
     types = []
@@ -280,8 +281,8 @@ def fan_event_json(event, contact, lang='en'):
         'city': venue.city if venue else '', 'country': venue.country if venue else '',
         'venueTimeZone': venue.time_zone if venue else 'America/Cancun', 'currency': event.currency,
         'language': event.language, 'embedUrl': f'{ticket_url}?embedded=1', 'checkoutUrl': ticket_url,
-        'ticketTypes': types, 'isMember': membership is not None, 'demand': demand(event),
-        'demandNote': event._localized(lang, event.demand_note_es, event.demand_note) or None,
+        'ticketTypes': types, 'isMember': membership is not None, 'demand': room,
+        'demandNote': event.demand_note_for(lang, (room or {}).get('taken')),
     }
     if event.ticketing_type == 'EXTERNAL' and event.external_ticket_url:
         data['externalTicketUrl'] = event.external_ticket_url

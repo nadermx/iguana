@@ -4825,5 +4825,23 @@ class DemandNoteTests(ApiTestCase):
         page = self.client.get(f'/embed/event/{self.event.id}?lang=es').content.decode()
         self.assertIn('Solo queda el 22% de los boletos.', page)
 
+    def test_the_percentage_drops_one_point_per_seat_sold_after_it_was_set(self):
+        from sales.models import Order, OrderItem
+
+        self.event.demand_note = 'Only {pct}% of tickets remaining.'
+        self.event.demand_note_es = 'Solo queda el {pct}% de los boletos.'
+        self.event.demand_note_pct, self.event.demand_note_from = 22, 0
+        self.event.save()
+        get = lambda lang='en': self.api('get', f'/api/public/v1/events/{self.event.id}?locale={lang}').json()['event']['demandNote']
+        self.assertEqual(get(), 'Only 22% of tickets remaining.')
+        order = Order.objects.create(event=self.event, status='COMPLETED', currency='mxn', total_amount_cents=2000,
+                                     customer_email='buyer@example.com')
+        OrderItem.objects.create(order=order, ticket_type=self.ga, name='GA', quantity=2, unit_price_cents=1000)
+        self.assertEqual(get(), 'Only 20% of tickets remaining.')
+        self.assertEqual(get('es'), 'Solo queda el 20% de los boletos.')
+        self.event.demand_note_pct = 1
+        self.event.save()
+        self.assertEqual(get(), 'Only 1% of tickets remaining.', 'never below 1')
+
     def test_no_note_means_none(self):
         self.assertIsNone(self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']['demandNote'])
