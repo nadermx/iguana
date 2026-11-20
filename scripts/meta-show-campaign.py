@@ -200,7 +200,8 @@ SHOWS['zach'] = {
     # in Playa (Feb 2026, old pixel) paid about 300 MXN a Meta-reported purchase and the interest-led one about 160;
     # the English open mic pays about twice the Spanish one per reservation. Spanish paid seats here cost 27 to 48,
     # so about 80 a seat is the planning figure: 75 x 80 = 6,000 MXN for the whole run, checked mid-week.
-    'lifetime_budget': 600000,            # centavos: 6,000.00 MXN
+    # 2026-11-19, two days out with 25 of 75 sold and 877 MXN left: +1,000 at the owner's word.
+    'lifetime_budget': 700000,            # centavos: 7,000.00 MXN
     # Playa and the drive people make (Puerto Aventuras, Akumal); Cancun and Tulum have their own nights.
     'geo': {'cities': [{'key': openmic.PLAYA, 'radius': 40, 'distance_unit': 'kilometer'}],
             'location_types': ['home', 'recent']},
@@ -208,9 +209,20 @@ SHOWS['zach'] = {
     # makes the audience small, and an interest list would only shrink it again (Meta ORs inside one list).
     'locales': openmic.ENGLISH_LOCALES,
     'interests': [],
+    # 2026-11-19, from this ad set's own breakdown and Manu's and Privilegio's: Audience Network took 1,373 MXN
+    # and 58 "paid checkouts" with ZERO purchases (it was gaming the optimisation event; Manu and Privilegio
+    # spent 2 MXN there in total), and 65+ took 1,248 MXN for no sale. Facebook and Instagram only, 25 to 64.
+    'age': (25, 64),
+    'placements': {'publisher_platforms': ['facebook', 'instagram'],
+                   'facebook_positions': ['feed', 'facebook_reels', 'story'],
+                   'instagram_positions': ['stream', 'reels', 'story']},
     # The owner's three edits (20s airport, 14s spirit, 17s zoo), each with date, club, address, "get your tickets".
     # The zoo cut said "DOORS OPEN 7:00" against the page's 7:30; the owner chose 7:00 and all three run.
     'videos': ['zach-airport-9x16.mp4', 'zach-spirit-9x16.mp4', 'zach-zoo-9x16.mp4'],
+    # 2026-11-19, owner: keep only the two that convert. Meta purchases per ad: airport 3 (195 MXN each),
+    # spirit 3 (222), zoo 1 (1,181), flyer 2 (1,345). Zoo and the flyer are paused and stay paused on a re-run.
+    'paused_videos': ['zach-zoo-9x16.mp4'],
+    'flyer_paused': True,
     # The owner's flyer, added 2026-11-15 as a fourth ad (Sat Nov 21, 8:00 pm, tickets on the site, no doors time).
     'image': 'zach-flyer-4x5.jpg',
     'story_image': 'zach-flyer-9x16-safe.jpg',
@@ -269,14 +281,17 @@ def iso(when):
 def targeting():
     spec = {
         'geo_locations': SHOW['geo'],
-        'age_min': 18,
-        'age_max': 65,
+        'age_min': SHOW.get('age', (18, 65))[0],
+        'age_max': SHOW.get('age', (18, 65))[1],
         'location_types': ['home', 'recent'],
         'targeting_automation': {'advantage_audience': 0},
     }
     interests = SHOW.get('interests', [openmic.STANDUP_INTEREST])
     if interests:
         spec['flexible_spec'] = [{'interests': interests}]
+    if SHOW.get('placements'):
+        spec.update(SHOW['placements'])
+        spec['device_platforms'] = ['mobile', 'desktop']
     if SHOW.get('locales'):
         spec['locales'] = SHOW['locales']
     return spec
@@ -542,7 +557,8 @@ def cmd_apply(args):
         feed = openmic.upload_image(openmic.CREATIVE_DIR / SHOW['image'])
         story = openmic.upload_image(openmic.CREATIVE_DIR / SHOW['story_image'])
         openmic.try_ad(blocked, 'es', 'show', adset_id,
-                       flyer_creative(feed, story, f'{CAMPAIGN} · flyer'), f'{ADSET} · flyer', args.live)
+                       flyer_creative(feed, story, f'{CAMPAIGN} · flyer'), f'{ADSET} · flyer',
+                       args.live and not SHOW.get('flyer_paused'))
 
     if blocked:
         print(f'\n{len(blocked)} ad(s) could not be created:')
