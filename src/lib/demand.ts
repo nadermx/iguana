@@ -125,6 +125,11 @@ export function demandLine(evt: KintanaPublicEvent, locale: Locale): DemandLine 
     room = t(locale, "demand.taken", { taken: String(d.taken), total: String(d.capacity) });
   }
 
+  // The owner's own urgency line replaces the counter and its bar (Event.demand_note, ours, not in the SDK's
+  // types). Sold out above still wins. Mirrored in the checkout iframe's renderDemand.
+  const note = !gone ? (evt as unknown as { demandNote?: string | null }).demandNote?.trim() || "" : "";
+  if (note) room = note;
+
   let momentum = "";
   if (!gone && d.recent >= MIN_RECENT && d.recentWindow in WINDOW_KEYS) {
     const when = t(locale, WINDOW_KEYS[d.recentWindow as keyof typeof WINDOW_KEYS]);
@@ -133,10 +138,11 @@ export function demandLine(evt: KintanaPublicEvent, locale: Locale): DemandLine 
 
   // For one slot only: running out beats somebody else booking, which beats a plain count. Unchanged, so the
   // hero badge reads exactly as it did.
-  const text = gone || tight ? room : momentum || room;
+  const text = gone || tight || note ? room : momentum || room;
   if (!text) return null;
 
-  return { room, momentum, text, tight, fill: d.showBar ? Math.min(100, Math.round((d.taken / d.capacity) * 100)) : null };
+  return { room, momentum, text, tight: tight || Boolean(note),
+           fill: d.showBar && !note ? Math.min(100, Math.round((d.taken / d.capacity) * 100)) : null };
 }
 
 /** Tightest first, matching WINDOWS in `backend/sales/demand.py`; also the tie-break order. */

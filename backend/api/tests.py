@@ -4809,3 +4809,21 @@ class CardImageTests(ApiTestCase):
     def test_no_card_photo_means_none(self):
         data = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']
         self.assertIsNone(data['imageUrlCard'])
+
+
+class DemandNoteTests(ApiTestCase):
+    """The owner's own urgency line (Event.demand_note) travels to the cards and the checkout in each language."""
+
+    def test_the_note_comes_out_in_the_readers_language(self):
+        self.event.demand_note = 'Only 22% of tickets remaining.'
+        self.event.demand_note_es = 'Solo queda el 22% de los boletos.'
+        self.event.save()
+        en = self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']
+        es = self.api('get', f'/api/public/v1/events/{self.event.id}?locale=es').json()['event']
+        self.assertEqual(en['demandNote'], 'Only 22% of tickets remaining.')
+        self.assertEqual(es['demandNote'], 'Solo queda el 22% de los boletos.')
+        page = self.client.get(f'/embed/event/{self.event.id}?lang=es').content.decode()
+        self.assertIn('Solo queda el 22% de los boletos.', page)
+
+    def test_no_note_means_none(self):
+        self.assertIsNone(self.api('get', f'/api/public/v1/events/{self.event.id}').json()['event']['demandNote'])

@@ -96,6 +96,13 @@ class Event(models.Model):
     image_url_mobile_es = models.CharField(max_length=500, blank=True, help_text='Spanish mobile poster.')
     # The small photo on the calendar and home page cards, when it should differ from the page's wide backdrop
     # (a headshot on the card, a show photo behind the title). Blank falls back to the posters as before.
+    # Owner's own urgency line, shown INSTEAD of the seat counter and its bar on the cards and in the checkout
+    # (owner, 2026-11-20: "only 22% of tickets remaining" on Zach McGovern). Sold out still says sold out, and the
+    # recent-bookings line still shows. Blank = the counter as usual.
+    demand_note = models.CharField(max_length=120, blank=True, default='', db_default='',
+                                   help_text='Replaces the seat counter, e.g. "Only 22% of tickets remaining."')
+    demand_note_es = models.CharField(max_length=120, blank=True, default='', db_default='',
+                                      help_text='Spanish; blank falls back to the English note.')
     card_image_url = models.CharField(max_length=500, blank=True, default='', db_default='',
                                       help_text='Listing card photo; blank uses the posters. Absolute URL or /media/...')
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=DRAFT)

@@ -281,6 +281,7 @@ def fan_event_json(event, contact, lang='en'):
         'venueTimeZone': venue.time_zone if venue else 'America/Cancun', 'currency': event.currency,
         'language': event.language, 'embedUrl': f'{ticket_url}?embedded=1', 'checkoutUrl': ticket_url,
         'ticketTypes': types, 'isMember': membership is not None, 'demand': demand(event),
+        'demandNote': event._localized(lang, event.demand_note_es, event.demand_note) or None,
     }
     if event.ticketing_type == 'EXTERNAL' and event.external_ticket_url:
         data['externalTicketUrl'] = event.external_ticket_url

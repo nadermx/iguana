@@ -261,14 +261,18 @@
     } else if (d.showBar) {
       room = T("{0} of {1} seats reserved", d.taken, d.capacity);
     }
+    // The owner's own urgency line replaces the counter and its bar (Event.demand_note); a sold-out room above
+    // still says so. Mirror of `src/lib/demand.ts`.
+    var note = d.left !== 0 && ev.demandNote ? ev.demandNote : "";
+    if (note) room = note;
     var momentum = d.left !== 0 && d.recent >= 2 ? T("{0} people reserved {1}", d.recent, T(d.recentWindow)) : "";
     if (!room && !momentum) return;   // an empty room is not an argument for coming; say nothing weak instead
     $("demand-line").textContent = room;
     show($("demand-line"), Boolean(room));
     $("demand-recent").textContent = momentum;
     show($("demand-recent"), Boolean(momentum));
-    if (d.left === 0 || d.left <= nearly) $("demand-line").classList.add("tight");
-    if (d.showBar) {
+    if (d.left === 0 || d.left <= nearly || note) $("demand-line").classList.add("tight");
+    if (d.showBar && !note) {
       $("demand-fill").style.width = Math.min(100, Math.round((d.taken / d.capacity) * 100)) + "%";
       show($("demand-track"), true);
     }
