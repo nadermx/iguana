@@ -215,9 +215,12 @@ SHOWS['zach'] = {
     'image': 'zach-flyer-4x5.jpg',
     'story_image': 'zach-flyer-9x16-safe.jpg',
     'copy': {
-        'message': ('Zach McGovern, Saturday Nov 21: tickets 250 MXN, get yours here in a minute.\n\n'
-                    'New York stand-up (The New York Comedy Club, The Stand, MTV) in Playa del Carmen for one night. '
-                    'In English, at Iguana Comedy Club in el centro. Doors 7:00, show 8:00, 75 seats.'),
+        # The owner's own copy (2026-11-19), typos fixed. It names no price, so the price rides in the headline
+        # below ('price_in_title'), which preflight then accepts in place of the first line.
+        'message': ('Performing for the 1st time in Playa del Carmen, Zach McGovern is bringing the laughs from the '
+                    'best clubs in New York City straight to PDC! Get your tickets for a hilarious night out Saturday '
+                    'November 21st at the only comedy club in Riviera Maya: Iguana Comedy!'),
+        'price_in_title': True,
         'title': 'Zach McGovern · tickets $250 MXN',
         'description': 'Sat Nov 21 · 8:00 pm · Iguana Comedy',
     },
@@ -430,7 +433,10 @@ def preflight():
             'the ad\'s FIRST line says it is free, and the ad names no price')
     else:
         add(not ev.get('payAtDoor'), 'FAIL', 'tickets are paid on the site, with no pay-at-the-door option')
-        add(('$' in first_line or 'mxn' in first_line), 'FAIL', 'the ad\'s FIRST line states the price')
+        if SHOW['copy'].get('price_in_title'):
+            add('$' in SHOW['copy']['title'], 'FAIL', 'the owner\'s copy names no price, so the HEADLINE states it')
+        else:
+            add(('$' in first_line or 'mxn' in first_line), 'FAIL', 'the ad\'s FIRST line states the price')
         add('puerta' not in first_line, 'FAIL', 'the ad does not promise paying at the door')
         add('$' in (SHOW['copy']['title'] + SHOW['copy']['description']), 'WARN', 'the headline or link line carries the price')
     description = (ev.get('description') or '') + ' ' + (ev.get('longDescription') or '')
