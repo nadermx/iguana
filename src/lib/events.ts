@@ -56,33 +56,42 @@ export function sortEventsDescending(events: KintanaPublicEvent[]): KintanaPubli
   return [...events].sort((a, b) => parseEventTs(b.date) - parseEventTs(a.date));
 }
 
-/** Local midnight today: events before this count as past. */
+/** Local midnight today. Kept for callers outside the calendar; the calendar itself compares Cancun days. */
 export function startOfTodayMs(now = new Date()): number {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 }
 
-export function isPastEvent(event: KintanaPublicEvent, nowMs = startOfTodayMs()): boolean {
-  if (event.status === "cancelled") return false;
-  if (event.status === "past") return true;
-  const ts = parseEventTs(event.date);
-  return Number.isFinite(ts) && ts < nowMs;
+/**
+ * Past or upcoming by the CANCUN calendar day, never the server clock. The server runs in UTC, so comparing a
+ * show's `YYYY-MM-DD` against UTC midnight dropped every show from the upcoming list at 19:00 Playa time on its
+ * own day, the two hours before doors when walk-up buyers look (found on Zach McGovern in Tulum, 2026-11-23).
+ */
+function eventDay(event: KintanaPublicEvent): string {
+  return (event.date || "").slice(0, 10);
 }
 
-export function isUpcomingEvent(event: KintanaPublicEvent, nowMs = startOfTodayMs()): boolean {
+export function isPastEvent(event: KintanaPublicEvent, today = todayInCancun()): boolean {
+  if (event.status === "cancelled") return false;
+  if (event.status === "past") return true;
+  const day = eventDay(event);
+  return /^\d{4}-\d{2}-\d{2}$/.test(day) && day < today;
+}
+
+export function isUpcomingEvent(event: KintanaPublicEvent, today = todayInCancun()): boolean {
   if (event.status === "cancelled") return false;
   if (event.status === "past") return false;
-  const ts = parseEventTs(event.date);
-  if (!Number.isFinite(ts)) return true;
-  return ts >= nowMs;
+  const day = eventDay(event);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return true;
+  return day >= today;
 }
 
 export function partitionEventsBySchedule(events: readonly KintanaPublicEvent[]) {
-  const nowMs = startOfTodayMs();
+  const today = todayInCancun();
   const upcoming: KintanaPublicEvent[] = [];
   const past: KintanaPublicEvent[] = [];
   for (const event of events) {
-    if (isPastEvent(event, nowMs)) past.push(event);
-    else if (isUpcomingEvent(event, nowMs)) upcoming.push(event);
+    if (isPastEvent(event, today)) past.push(event);
+    else if (isUpcomingEvent(event, today)) upcoming.push(event);
   }
   return { upcoming, past };
 }

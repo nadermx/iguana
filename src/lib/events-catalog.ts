@@ -1,7 +1,7 @@
 import { createKintanaClient } from "@kintana/sdk";
 import type { KintanaPublicEvent } from "@kintana/sdk";
 
-import { partitionEventsBySchedule } from "./events";
+import { partitionEventsBySchedule, todayInCancun } from "./events";
 
 /** Inclusive UTC `YYYY-MM-DD` for API `from`/`to`. */
 export function utcDateIso(d = new Date()): string {
@@ -12,10 +12,11 @@ type Client = ReturnType<typeof createKintanaClient>;
 
 /**
  * Loads calendar sections using API filters (`from` / `status: past`), then reunifies rows
- * and applies {@link partitionEventsBySchedule} for edge cases (stale statuses vs local midnight).
+ * and applies {@link partitionEventsBySchedule} for edge cases (stale statuses vs the Cancun day).
  */
 export async function loadEventsForCalendarPages(client: Client): Promise<{ upcoming: KintanaPublicEvent[]; past: KintanaPublicEvent[] }> {
-  const from = utcDateIso();
+  // The Cancun day, not UTC's: from 19:00 Playa time UTC is already tomorrow and tonight's show fell out.
+  const from = todayInCancun();
 
   const [fromTodayRows, pastStatusRows] = await Promise.all([
     client.listEvents({ limit: 100, from }),
