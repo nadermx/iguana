@@ -10,7 +10,6 @@
 set -euo pipefail
 
 session=${1:?session uuid}
-[[ $session =~ ^[0-9a-f-]{36}$ ]] || { echo "bad session id" >&2; exit 2; }
 
 export HOME=/home/claude
 export PATH=/home/claude/.local/bin:/usr/local/bin:/usr/bin:/bin
@@ -23,6 +22,13 @@ if [ -s "$HOME/.claude-oauth-token" ]; then
   CLAUDE_CODE_OAUTH_TOKEN=$(tr -d '[:space:]' < "$HOME/.claude-oauth-token")
   export CLAUDE_CODE_OAUTH_TOKEN
 fi
+
+# `--auth-status`: whether Claude Code is signed in, as JSON ({"loggedIn": ...}). The chat worker asks every
+# minute while turns wait for a sign-in, so it can run them the moment someone signs the account back in.
+if [ "$session" = "--auth-status" ]; then
+  exec timeout 50 claude auth status
+fi
+[[ $session =~ ^[0-9a-f-]{36}$ ]] || { echo "bad session id" >&2; exit 2; }
 
 # Resume the conversation when Claude Code already has it on disk, start it otherwise. Decided here rather
 # than by the worker, because a first turn that failed before Claude started (not signed in) left no session.

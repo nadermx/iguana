@@ -4,9 +4,16 @@ import sys
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
-from assistant.management.commands.chat_worker import claim_next
+from datetime import timedelta
+from unittest import mock
+
+from django.core import mail
+from django.test import override_settings
+from django.utils import timezone
+
+from assistant.management.commands.chat_worker import claim_next, release_signed_out, resume_interrupted
 from assistant.models import Conversation, Turn
-from assistant.runner import TurnState, describe_tool, run_turn
+from assistant.runner import MAX_RETRIES, TurnState, agent_prompt, classify, describe_tool, limit_reset, run_turn
 
 User = get_user_model()
 
@@ -19,6 +26,9 @@ def out(event): print(json.dumps(event), flush=True)
 out({"type": "system", "subtype": "init", "session_id": session})
 if "fail" in prompt:
     out({"type": "result", "subtype": "success", "is_error": True, "result": "Invalid API key, please run /login"})
+    sys.exit(1)
+if "boom" in prompt and "Automatic retry" not in prompt:
+    out({"type": "result", "subtype": "error_during_execution", "is_error": True, "result": "API Error: 529 Overloaded"})
     sys.exit(1)
 out({"type": "assistant", "message": {"content": [
     {"type": "text", "text": "Looking."},
@@ -178,10 +188,58 @@ class RunnerTests(TestCase):
         self.assertEqual(str(turn.cost_usd), '0.0123')
         self.assertIsNotNone(turn.finished_at)
 
-    def test_an_agent_error_fails_the_turn_with_the_reason(self):
+    @override_settings(CHAT_ALERT_EMAILS=['dev@example.com'])
+    def test_signed_out_waits_for_a_sign_in_and_mails_once(self):
         turn = self.run_one('fail please')
-        self.assertEqual(turn.status, Turn.FAILED)
+        self.assertEqual((turn.status, turn.notice), (Turn.QUEUED, 'signed_out'))
         self.assertIn('/login', turn.error)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIsNone(claim_next())  # held until signed in
+        other = Conversation.objects.create(title='o')
+        second = Turn.objects.create(conversation=other, prompt='fail again')
+        self.assertEqual(claim_next().pk, second.pk)  # another conversation is not held
+        run_turn(Turn.objects.get(pk=second.pk), command=self.command)
+        self.assertEqual(len(mail.outbox), 1)  # one alert per outage, not per turn
+
+        self.assertEqual(release_signed_out(check=lambda: False), 0)
+        self.assertEqual(release_signed_out(check=lambda: True), 2)
+        turn.refresh_from_db()
+        self.assertEqual((turn.notice, turn.attempts), ('retry', 1))
+        self.assertEqual(claim_next().pk, turn.pk)
+
+    def test_a_glitch_is_retried_with_the_error_and_then_succeeds(self):
+        turn = self.run_one('boom')
+        self.assertEqual((turn.status, turn.notice, turn.attempts), (Turn.QUEUED, 'retry', 1))
+        self.assertIn('529', turn.error)
+        self.assertIsNone(claim_next())  # backing off
+        self.assertEqual(claim_next(now=timezone.now() + timedelta(minutes=5)).pk, turn.pk)
+        turn.refresh_from_db()
+        self.assertIn('Automatic retry 1', agent_prompt(turn))
+        self.assertIn('529', agent_prompt(turn))
+        run_turn(turn, command=self.command)
+        turn.refresh_from_db()
+        self.assertEqual((turn.status, turn.notice), (Turn.DONE, ''))
+
+    def test_retries_run_out(self):
+        Turn.objects.create(conversation=self.conversation, prompt='boom', attempts=MAX_RETRIES, error='x')
+        turn = claim_next()
+        with mock.patch('assistant.runner.agent_prompt', return_value='boom'):
+            run_turn(turn, command=self.command)
+        turn.refresh_from_db()
+        self.assertEqual(turn.status, Turn.FAILED)
+
+    def test_a_turn_cut_off_by_a_restart_resumes(self):
+        Turn.objects.create(conversation=self.conversation, prompt='deploy it', status=Turn.RUNNING)
+        resume_interrupted()
+        turn = claim_next()
+        self.assertEqual((turn.attempts, turn.notice), (1, 'retry'))
+        self.assertIn('restarted mid-turn', agent_prompt(turn))
+
+    def test_later_messages_wait_behind_a_retry_in_their_conversation(self):
+        Turn.objects.create(conversation=self.conversation, prompt='a', notice='retry', attempts=1,
+                            retry_at=timezone.now() + timedelta(minutes=5))
+        Turn.objects.create(conversation=self.conversation, prompt='b')
+        self.assertIsNone(claim_next())
 
     def test_a_missing_command_fails_cleanly(self):
         Turn.objects.create(conversation=self.conversation, prompt='hi')
@@ -190,6 +248,21 @@ class RunnerTests(TestCase):
         turn.refresh_from_db()
         self.assertEqual(turn.status, Turn.FAILED)
         self.assertIn('Could not start', turn.error)
+
+
+class ClassifyTests(TestCase):
+    def test_kinds(self):
+        self.assertEqual(classify('Failed to authenticate: OAuth session expired and could not be refreshed'), 'auth')
+        self.assertEqual(classify('Invalid API key · Please run /login'), 'auth')
+        self.assertEqual(classify('Claude AI usage limit reached|1795740000'), 'limit')
+        self.assertEqual(classify('API Error: 529 Overloaded'), 'other')
+        self.assertEqual(classify('Stopped after 60 minutes.'), 'timeout')
+
+    def test_limit_reset(self):
+        now = timezone.now()
+        at = limit_reset(f'Claude AI usage limit reached|{int(now.timestamp()) + 3600}', now)
+        self.assertAlmostEqual((at - now).total_seconds(), 3660, delta=2)
+        self.assertEqual(limit_reset('usage limit reached', now), now + timedelta(minutes=30))
 
 
 class StreamParsingTests(TestCase):

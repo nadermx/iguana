@@ -606,6 +606,13 @@ ES = {
     'Waiting for the agent…': 'Esperando al agente…',
     'Working…': 'Trabajando…',
     'Stopped.': 'Detenido.',
+    'Last error: {0}': 'Último error: {0}',
+    'That attempt hit an error, so the agent is trying again by itself (retry {0} of {1}). It will check what was already done and fix the cause if it can.':
+        'Ese intento tuvo un error, así que el agente vuelve a intentarlo por su cuenta (reintento {0} de {1}). Revisará lo que ya quedó hecho y corregirá la causa si puede.',
+    "The club's Claude account is signed out on the server, so the agent cannot work. The developer has been emailed. This message runs by itself as soon as the account is signed back in.":
+        'La cuenta de Claude del club tiene la sesión cerrada en el servidor, así que el agente no puede trabajar. Ya se le avisó al desarrollador por correo. Este mensaje se ejecutará solo en cuanto se vuelva a iniciar sesión.',
+    "The club's Claude plan has reached its usage limit. This message runs by itself when the limit resets, around {0}.":
+        'El plan de Claude del club llegó a su límite de uso. Este mensaje se ejecutará solo cuando el límite se reinicie, hacia las {0}.',
     'Failed': 'Falló',
     'Stop': 'Detener',
     '{0} steps': '{0} pasos',

@@ -7,7 +7,7 @@ class TurnInline(admin.StackedInline):
     model = Turn
     extra = 0
     can_delete = False
-    fields = ('status', 'prompt', 'reply', 'error', 'activity', 'cost_usd', 'created_at', 'finished_at')
+    fields = ('status', 'attempts', 'notice', 'prompt', 'reply', 'error', 'activity', 'cost_usd', 'created_at', 'finished_at')
     readonly_fields = fields
 
 

@@ -24,6 +24,28 @@ headless browser is stopped by Cloudflare, so a person does this step), and past
    hour. If the worker dies mid-turn, the next one marks that turn failed.
 5. One turn at a time, across all conversations, because they share one checkout.
 
+## It recovers by itself (2026-11-26)
+
+Added after a turn failed with `Failed to authenticate: OAuth session expired and could not be refreshed` and
+the owner was left with a bare error. A failure no longer ends the turn; `assistant/runner.py::recover` reads it:
+
+| Failure | What happens |
+| --- | --- |
+| Anything else (API 5xx/529, network, `error_during_execution`, a crash) | Back in the queue, retried up to 3 times (30 s, 2 min, 10 min). The retry's prompt carries the error and tells the agent to check what is already done and fix the cause if it is ours (`agent_prompt`). |
+| Worker restarted mid-turn | Resumed the same way on the next start (`resume_interrupted`), instead of "Interrupted". |
+| Signed out (OAuth, `/login`, 401) | Waits, `notice='signed_out'`. The first such turn mails `CHAT_ALERT_EMAILS` (default `john@iguanacomedy.com`). The worker runs `iguana-agent-run --auth-status` every minute and releases the waiting turns the moment it says `loggedIn`, as a counted retry so a false match cannot loop. |
+| Usage limit | Waits until the reset time Claude Code gives (`...|<unix>`), else 30 minutes. |
+| Owner's Stop, the one-hour cap, retries used up | Failed, as before. |
+
+A waiting turn holds back later messages in its own conversation only. The page shows why it is waiting, in
+both languages. A Postgres outage no longer crashes the worker (it waits for the database).
+
+🚨 **Sign the server in with a long-lived token, not `/login`.** The `/login` credentials in
+`~/.claude/.credentials.json` refresh themselves and can fail to (that is what happened on 2026-11-26: the
+refresh token was gone and Claude Code wiped the file). `sudo -iu claude claude setup-token` prints a token
+valid for a year; save it to `/home/claude/.claude-oauth-token` (mode 600, owner `claude`). Both
+`iguana-agent-run` and `iguana-clip-ai` already prefer that file.
+
 The full transcript (prompts, replies, every tool call) is in Postgres, so it is in the nightly backup and
 readable at `/admin/assistant/conversation/`.
 

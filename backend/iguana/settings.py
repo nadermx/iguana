@@ -16,6 +16,8 @@ STRIPE_PUBLISHABLE_KEY = getattr(config, 'STRIPE_PUBLISHABLE_KEY', '')
 STRIPE_SECRET_KEY = getattr(config, 'STRIPE_SECRET_KEY', '')
 STRIPE_WEBHOOK_SECRET = getattr(config, 'STRIPE_WEBHOOK_SECRET', '')
 NOTIFY_EMAILS = getattr(config, 'NOTIFY_EMAILS', [])
+# Who hears when the /chat/ agent's Claude account is signed out on the server (only a person can sign it back in).
+CHAT_ALERT_EMAILS = getattr(config, 'CHAT_ALERT_EMAILS', ['john@iguanacomedy.com'])
 # Where a reply to a newsletter should land. Receipts and sign-in codes keep the no-reply From and no Reply-To.
 MARKETING_REPLY_TO = getattr(config, 'MARKETING_REPLY_TO', '')
 # Meta Conversions API: the only way Meta learns a ticket sold, since checkout is an iframe on this domain and a

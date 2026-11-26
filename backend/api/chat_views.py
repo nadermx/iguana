@@ -19,6 +19,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from assistant import files as chat_files
 from assistant.models import Conversation, Turn
+from assistant.runner import MAX_RETRIES
 from sales.i18n import lang_from_request, tr
 
 log = logging.getLogger(__name__)
@@ -53,6 +54,9 @@ def _turn(turn):
         'cost': str(turn.cost_usd) if turn.cost_usd is not None else None,
         'created': turn.created_at.isoformat(),
         'finished': turn.finished,
+        'notice': turn.notice if turn.status == Turn.QUEUED else '',
+        'attempts': turn.attempts,
+        'retry_at': turn.retry_at.isoformat() if turn.retry_at else None,
     }
 
 
@@ -82,13 +86,18 @@ def chat(request):
         'send_failed': 'Could not send. Check the connection and try again.',
         'files': 'Attached: {0}',
         'uploading': 'Uploading, {0}% done. Keep this page open.',
+        'last_error': 'Last error: {0}',
+        'notice_retry': 'That attempt hit an error, so the agent is trying again by itself (retry {0} of {1}). It will check what was already done and fix the cause if it can.',
+        'notice_signed_out': "The club's Claude account is signed out on the server, so the agent cannot work. The developer has been emailed. This message runs by itself as soon as the account is signed back in.",
+        'notice_limit': "The club's Claude plan has reached its usage limit. This message runs by itself when the limit resets, around {0}.",
     }.items()}
     return render(request, 'embed/chat.html', {
         'lang': lang,
         'conversations': conversations,
         'current': current,
         'busy_elsewhere': busy,
-        'bootstrap': {'conversation': current.pk if current else None, 'turns': turns, 'strings': strings},
+        'bootstrap': {'conversation': current.pk if current else None, 'turns': turns, 'strings': strings,
+                      'max_retries': MAX_RETRIES},
     })
 
 

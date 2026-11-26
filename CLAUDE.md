@@ -400,6 +400,10 @@ Detail and evidence: **`docs/mail.md`**. `iguana-mail` on the server reads the l
 - Files the owner attaches in `/chat/` land in `/var/lib/iguana/chat-files/chat/<conversation>/` (setgid group
   `claude`, so the agent reads them without sudo) and their paths are appended to the prompt. Media the agent
   publishes goes into the live `backend/media/`, never into git.
+- **It heals its own failures** (`assistant/runner.py::recover`): a glitch or a mid-turn restart is retried up to
+  3 times with the error in the prompt; a signed-out account waits, mails `CHAT_ALERT_EMAILS` once and runs when
+  `iguana-agent-run --auth-status` says signed in; a usage limit waits for the reset. Keep the server on a
+  `claude setup-token` token in `/home/claude/.claude-oauth-token`; `/login` credentials can fail to refresh.
 - Infrastructure is still ansible's alone. If the agent changed something live with sudo, its deploy email
   says so; land the matching `ansible/` change before the next `deploy.yml` undoes it.
 

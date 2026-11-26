@@ -42,6 +42,12 @@ class Turn(models.Model):
     error = models.TextField(blank=True)
     cost_usd = models.DecimalField(max_digits=8, decimal_places=4, null=True, blank=True)
     stop_requested = models.BooleanField(default=False)
+    # Self-recovery (assistant/runner.py `recover`): a failed attempt goes back in the queue instead of ending
+    # the turn. `attempts` counts the retries spent, `retry_at` holds it back until then, and `notice` says why
+    # it is waiting ('retry', 'signed_out', 'limit') so the page can tell the owner it will run by itself.
+    attempts = models.PositiveSmallIntegerField(default=0, db_default=0)
+    retry_at = models.DateTimeField(null=True, blank=True)
+    notice = models.CharField(max_length=20, blank=True, default='', db_default='')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)

@@ -5,18 +5,26 @@ second agent working in the same checkout at the same moment would trample the f
 
 It restarts itself between turns when a deploy has changed the code, rather than being restarted BY the deploy,
 because the deploy is usually running inside one of its turns and killing the worker would kill the deploy.
+
+It heals what it can by itself (assistant/runner.py `recover`): a turn cut off by a restart is resumed, a failed
+attempt is retried with the error in hand, and while the Claude account is signed out the queue waits and the
+worker asks Claude Code every minute whether it is back, then runs what was waiting.
 """
 
+import logging
 import time
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import OperationalError, close_old_connections, transaction
 from django.utils import timezone
 
 from assistant.models import Turn
-from assistant.runner import run_turn
+from assistant.runner import MAX_RETRIES, auth_ok, run_turn
+
+log = logging.getLogger(__name__)
+AUTH_RECHECK = 60
 
 DEPLOYED_MARKER = Path(settings.BASE_DIR).parent / 'DEPLOYED_COMMIT'
 
@@ -28,15 +36,56 @@ def _marker():
         return None
 
 
-def claim_next():
+def claim_next(now=None):
+    """The oldest turn that may run now. A turn waiting for a retry or a sign-in holds back its own
+    conversation (its messages stay in order) but not the others."""
+    now = now or timezone.now()
     with transaction.atomic():
-        turn = (Turn.objects.select_for_update(skip_locked=True, of=('self',)).filter(status=Turn.QUEUED)
-                .order_by('created_at', 'pk').first())
+        queued = list(Turn.objects.select_for_update(skip_locked=True, of=('self',)).filter(status=Turn.QUEUED)
+                      .order_by('created_at', 'pk'))
+        seen, turn = set(), None
+        for candidate in queued:
+            if candidate.conversation_id in seen:
+                continue
+            seen.add(candidate.conversation_id)
+            if candidate.notice != 'signed_out' and (candidate.retry_at is None or candidate.retry_at <= now):
+                turn = candidate
+                break
         if turn is None:
             return None
         turn.status, turn.started_at = Turn.RUNNING, timezone.now()
         turn.save(update_fields=['status', 'started_at'])
     return Turn.objects.select_related('conversation').get(pk=turn.pk)
+
+
+def resume_interrupted(now=None):
+    """Whatever was running when the last worker died did not finish. Run it again (the agent is told it was
+    cut off) unless it has used its retries."""
+    now = now or timezone.now()
+    error = 'Interrupted: the chat worker restarted mid-turn.'
+    cut_off = Turn.objects.filter(status=Turn.RUNNING)
+    cut_off.filter(attempts__gte=MAX_RETRIES).update(status=Turn.FAILED, error=error, notice='', retry_at=None,
+                                                     finished_at=now)
+    for turn in cut_off.filter(attempts__lt=MAX_RETRIES):
+        Turn.objects.filter(pk=turn.pk).update(status=Turn.QUEUED, error=error, notice='retry', retry_at=now,
+                                               attempts=turn.attempts + 1, started_at=None, finished_at=None)
+
+
+def release_signed_out(check=auth_ok, now=None):
+    """Once Claude Code answers that it is signed in, the turns that waited for it run. Released as a counted
+    retry, so an error that only LOOKS like a sign-in problem cannot loop."""
+    waiting = Turn.objects.filter(status=Turn.QUEUED, notice='signed_out')
+    if not waiting.exists() or not check():
+        return 0
+    now = now or timezone.now()
+    released = 0
+    for turn in waiting:
+        if turn.attempts >= MAX_RETRIES:
+            Turn.objects.filter(pk=turn.pk).update(status=Turn.FAILED, notice='', finished_at=now)
+            continue
+        Turn.objects.filter(pk=turn.pk).update(notice='retry', retry_at=now, attempts=turn.attempts + 1)
+        released += 1
+    return released
 
 
 class Command(BaseCommand):
@@ -46,16 +95,30 @@ class Command(BaseCommand):
         parser.add_argument('--once', action='store_true', help='Run at most one turn and exit (tests, debugging).')
 
     def handle(self, *args, once=False, **options):
-        # Whatever was running when the last worker died did not finish, and nothing else will finish it.
-        Turn.objects.filter(status=Turn.RUNNING).update(
-            status=Turn.FAILED, error='Interrupted: the chat worker restarted mid-turn.', finished_at=timezone.now())
-        started_with = _marker()
+        resume_interrupted()
+        started_with, auth_checked = _marker(), 0.0
         while True:
-            turn = claim_next()
-            if turn is not None:
-                self.stdout.write(f'turn {turn.pk} started')
-                run_turn(turn)
-                self.stdout.write(f'turn {turn.pk} {Turn.objects.get(pk=turn.pk).status}')
+            try:
+                if time.monotonic() - auth_checked >= AUTH_RECHECK:
+                    auth_checked = time.monotonic()
+                    if release_signed_out():
+                        self.stdout.write('Claude is signed in again; running the turns that waited')
+                turn = claim_next()
+                if turn is not None:
+                    self.stdout.write(f'turn {turn.pk} started (attempt {turn.attempts + 1})')
+                    run_turn(turn)
+                    self.stdout.write(f'turn {turn.pk} {Turn.objects.get(pk=turn.pk).status}')
+            except OperationalError:
+                # Postgres restarting (the nightly backup, an upgrade) used to crash the worker and fail the turn
+                # it was on. Wait for the database instead.
+                log.warning('chat worker: database unavailable, waiting', exc_info=True)
+                close_old_connections()
+                time.sleep(5)
+                try:
+                    resume_interrupted()  # the turn the outage cut off, if it was mid-run
+                except OperationalError:
+                    pass
+                continue
             if once:
                 return
             if _marker() != started_with:
