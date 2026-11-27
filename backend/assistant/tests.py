@@ -11,7 +11,8 @@ from django.core import mail
 from django.test import override_settings
 from django.utils import timezone
 
-from assistant.management.commands.chat_worker import claim_next, release_signed_out, resume_interrupted
+from assistant.management.commands.chat_worker import (claim_next, release_signed_out, resume_interrupted,
+                                                        take_sign_in_code)
 from assistant.models import Conversation, Turn
 from assistant.runner import MAX_RETRIES, TurnState, agent_prompt, classify, describe_tool, limit_reset, run_turn
 
@@ -105,6 +106,12 @@ class ChatFlowTests(TestCase):
 
         listed = self.client.get(f'/chat/{conversation.pk}/turns/').json()['turns']
         self.assertEqual([t['status'] for t in listed], ['queued'])
+
+    def test_a_sign_in_code_may_join_a_conversation_that_is_waiting_for_it(self):
+        conversation = self.send(prompt='add a show').json()['conversation']
+        Turn.objects.filter(conversation=conversation).update(notice='signed_out')
+        self.assertEqual(self.send(conversation=conversation, prompt='more words here').status_code, 409)
+        self.assertEqual(self.send(conversation=conversation, prompt='abcdefghijklmnopqrstuvwxyz#0123456789ab').status_code, 200)
 
     def test_stop_a_queued_turn(self):
         conversation = self.send(prompt='hello').json()['conversation']
@@ -206,6 +213,19 @@ class RunnerTests(TestCase):
         turn.refresh_from_db()
         self.assertEqual((turn.notice, turn.attempts), ('retry', 1))
         self.assertEqual(claim_next().pk, turn.pk)
+
+    def test_a_pasted_sign_in_code_finishes_the_sign_in_and_is_never_run(self):
+        waiting = Turn.objects.create(conversation=self.conversation, prompt='add a show', notice='signed_out')
+        code = Turn.objects.create(conversation=self.conversation, notice='signed_out',
+                                   prompt=' abcdefghijklmnopqrstuvwxyz0123#STATEabcdefghij ')
+        got = []
+        self.assertTrue(take_sign_in_code(submit=lambda c: got.append(c) or True))
+        self.assertEqual(got, [code.prompt])
+        code.refresh_from_db()
+        self.assertEqual((code.status, code.prompt), (Turn.DONE, '(sign-in code)'))
+        self.assertIn('Sesión iniciada', code.reply)
+        self.assertEqual(Turn.objects.get(pk=waiting.pk).status, Turn.QUEUED)  # a task, left for the agent
+        self.assertFalse(take_sign_in_code(submit=lambda c: self.fail('no code left')))
 
     def test_a_glitch_is_retried_with_the_error_and_then_succeeds(self):
         turn = self.run_one('boom')

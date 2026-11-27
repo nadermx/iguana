@@ -19,7 +19,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from assistant import files as chat_files
 from assistant.models import Conversation, Turn
-from assistant.runner import MAX_RETRIES
+from assistant.runner import MAX_RETRIES, looks_like_sign_in_code
 from sales.i18n import lang_from_request, tr
 
 log = logging.getLogger(__name__)
@@ -129,7 +129,10 @@ def send(request):
     else:
         title = prompt or ', '.join(u.name for u in uploads)
         conversation = Conversation.objects.create(title=' '.join(title.split())[:120], created_by=request.user)
-    if conversation.turns.filter(status__in=(Turn.QUEUED, Turn.RUNNING)).exists():
+    busy = conversation.turns.filter(status__in=(Turn.QUEUED, Turn.RUNNING))
+    # While signed out, the sign-in code may go into a conversation whose message is waiting for it.
+    signing_in = looks_like_sign_in_code(prompt) and not uploads and not busy.exclude(notice='signed_out').exists()
+    if busy.exists() and not signing_in:
         return JsonResponse({'error': 'Wait for the current reply to finish, or stop it'}, status=409)
     if uploads:
         saved = chat_files.store(uploads, 'chat', conversation.pk)

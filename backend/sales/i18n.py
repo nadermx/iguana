@@ -607,6 +607,10 @@ ES = {
     'Working…': 'Trabajando…',
     'Stopped.': 'Detenido.',
     'Last error: {0}': 'Último error: {0}',
+    'Signed in. The agent works again, and the messages that waited are running now.':
+        'Sesión iniciada. El agente vuelve a funcionar y los mensajes que esperaban ya se están ejecutando.',
+    'That sign-in code did not work. It may have expired: ask for a new sign-in link.':
+        'Ese código de inicio de sesión no funcionó. Puede que haya caducado: pide un enlace nuevo.',
     'That attempt hit an error, so the agent is trying again by itself (retry {0} of {1}). It will check what was already done and fix the cause if it can.':
         'Ese intento tuvo un error, así que el agente vuelve a intentarlo por su cuenta (reintento {0} de {1}). Revisará lo que ya quedó hecho y corregirá la causa si puede.',
     "The club's Claude account is signed out on the server, so the agent cannot work. The developer has been emailed. This message runs by itself as soon as the account is signed back in.":

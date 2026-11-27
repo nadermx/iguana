@@ -21,7 +21,8 @@ from django.db import OperationalError, close_old_connections, transaction
 from django.utils import timezone
 
 from assistant.models import Turn
-from assistant.runner import MAX_RETRIES, auth_ok, run_turn
+from assistant.runner import MAX_RETRIES, auth_ok, looks_like_sign_in_code, run_turn, submit_sign_in_code
+from sales.i18n import tr
 
 log = logging.getLogger(__name__)
 AUTH_RECHECK = 60
@@ -71,6 +72,25 @@ def resume_interrupted(now=None):
                                                attempts=turn.attempts + 1, started_at=None, finished_at=None)
 
 
+SIGNED_IN = 'Signed in. The agent works again, and the messages that waited are running now.'
+CODE_REFUSED = 'That sign-in code did not work. It may have expired: ask for a new sign-in link.'
+
+
+def take_sign_in_code(submit=submit_sign_in_code, now=None):
+    """While the account is signed out, a message that is nothing but a sign-in code is the owner finishing the
+    sign-in (the link came by email), not a task: hand it to the waiting setup-token, answer it, never run it."""
+    now = now or timezone.now()
+    for turn in Turn.objects.filter(status=Turn.QUEUED, notice='signed_out').order_by('created_at', 'pk'):
+        if not looks_like_sign_in_code(turn.prompt):
+            continue
+        ok = submit(turn.prompt)
+        reply = tr('en', SIGNED_IN if ok else CODE_REFUSED) + '\n\n' + tr('es', SIGNED_IN if ok else CODE_REFUSED)
+        Turn.objects.filter(pk=turn.pk).update(status=Turn.DONE if ok else Turn.FAILED, notice='', reply=reply,
+                                               error='', prompt='(sign-in code)', finished_at=now)
+        return ok
+    return False
+
+
 def release_signed_out(check=auth_ok, now=None):
     """Once Claude Code answers that it is signed in, the turns that waited for it run. Released as a counted
     retry, so an error that only LOOKS like a sign-in problem cannot loop."""
@@ -101,7 +121,10 @@ class Command(BaseCommand):
             try:
                 if time.monotonic() - auth_checked >= AUTH_RECHECK:
                     auth_checked = time.monotonic()
-                    if release_signed_out():
+                    # Just signed in by a pasted code: run what waited without trusting `auth status` to agree
+                    # (a token sign-in may not show there; a turn that still cannot sign in just waits again).
+                    signed_in = take_sign_in_code()
+                    if release_signed_out(check=(lambda: True) if signed_in else auth_ok):
                         self.stdout.write('Claude is signed in again; running the turns that waited')
                 turn = claim_next()
                 if turn is not None:

@@ -28,6 +28,29 @@ fi
 if [ "$session" = "--auth-status" ]; then
   exec timeout 50 claude auth status
 fi
+# `--auth-code`: finish a pending `claude setup-token` with the code the owner pasted into /chat/ (stdin).
+# Someone starts it once on the server, in tmux as claude: `tmux new -d -s setuptoken 'claude setup-token'`,
+# and sends the owner its link. The long-lived token it prints is saved to ~/.claude-oauth-token (600).
+if [ "$session" = "--auth-code" ]; then
+  code=$(tr -d '[:space:]' | head -c 400)
+  [[ $code =~ ^[A-Za-z0-9_#.-]{20,}$ ]] || { echo '{"ok": false, "why": "not a code"}'; exit 1; }
+  tmux has-session -t setuptoken 2>/dev/null || { echo '{"ok": false, "why": "no setup-token waiting"}'; exit 1; }
+  tmux send-keys -t setuptoken -l "$code"
+  tmux send-keys -t setuptoken Enter
+  for _ in $(seq 30); do
+    sleep 2
+    token=$(tmux capture-pane -p -J -S -200 -t setuptoken 2>/dev/null | grep -o 'sk-ant-oat[A-Za-z0-9_-]*' | tail -1 || true)
+    if [ -n "$token" ]; then
+      umask 077
+      printf '%s\n' "$token" > "$HOME/.claude-oauth-token.new" && mv "$HOME/.claude-oauth-token.new" "$HOME/.claude-oauth-token"
+      tmux kill-session -t setuptoken
+      echo '{"ok": true}'
+      exit 0
+    fi
+  done
+  echo '{"ok": false, "why": "no token after 60 seconds"}'
+  exit 1
+fi
 [[ $session =~ ^[0-9a-f-]{36}$ ]] || { echo "bad session id" >&2; exit 2; }
 
 # Resume the conversation when Claude Code already has it on disk, start it otherwise. Decided here rather

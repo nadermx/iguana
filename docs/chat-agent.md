@@ -46,6 +46,14 @@ refresh token was gone and Claude Code wiped the file). `sudo -iu claude claude 
 valid for a year; save it to `/home/claude/.claude-oauth-token` (mode 600, owner `claude`). Both
 `iguana-agent-run` and `iguana-clip-ai` already prefer that file.
 
+The person who signs in is Andrew (hello@ and his phone), so the code can come back through `/chat/` itself.
+Start the flow on the server, `sudo -iu claude tmux new -d -s setuptoken -x 400 'claude setup-token'`, read the
+link with `sudo -iu claude tmux capture-pane -p -J -t setuptoken`, and send it to him. While the account is
+signed out, a `/chat/` message that is nothing but a code (`take_sign_in_code`) is handed to that tmux session
+(`iguana-agent-run --auth-code`), which saves the printed token to `~/.claude-oauth-token`; the message is
+answered, stored as `(sign-in code)`, never run, and the waiting messages start. The code expires within
+minutes, so a code that arrives late fails with "ask for a new sign-in link": start a new session and resend.
+
 The full transcript (prompts, replies, every tool call) is in Postgres, so it is in the nightly backup and
 readable at `/admin/assistant/conversation/`.
 

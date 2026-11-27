@@ -91,6 +91,23 @@ def auth_ok(command=None):
     return bool(status.get('loggedIn', True)) if isinstance(status, dict) else True
 
 
+SIGN_IN_CODE = re.compile(r'^[A-Za-z0-9_.-]{20,}(#[A-Za-z0-9_.-]{8,})?$')
+
+
+def looks_like_sign_in_code(prompt):
+    return bool(SIGN_IN_CODE.match((prompt or '').strip()))
+
+
+def submit_sign_in_code(code, command=None):
+    """Hand a pasted sign-in code to the waiting `claude setup-token` (iguana-agent-run --auth-code)."""
+    command = (command or agent_command()) + ['--auth-code']
+    try:
+        done = subprocess.run(command, input=code.strip(), capture_output=True, text=True, timeout=90)
+        return bool(json.loads(done.stdout or '{}').get('ok'))
+    except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
+        return False
+
+
 def _alert_signed_out(error):
     recipients = list(getattr(settings, 'CHAT_ALERT_EMAILS', []) or [])
     if not recipients:
