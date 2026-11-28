@@ -609,12 +609,14 @@ ES = {
     'Last error: {0}': 'Último error: {0}',
     'Signed in. The agent works again, and the messages that waited are running now.':
         'Sesión iniciada. El agente vuelve a funcionar y los mensajes que esperaban ya se están ejecutando.',
-    'That sign-in code did not work. It may have expired: ask for a new sign-in link.':
-        'Ese código de inicio de sesión no funcionó. Puede que haya caducado: pide un enlace nuevo.',
+    'That sign-in code did not work ({0}). Open the new sign-in link on the waiting message and try again, in one go: the code expires after a few minutes.':
+        'Ese código de inicio de sesión no funcionó ({0}). Abre el nuevo enlace de inicio de sesión del mensaje en espera e inténtalo otra vez, de una sola vez: el código caduca en pocos minutos.',
+    "The club's Claude account is signed out on the server, so the agent cannot work. To sign it back in: open the link below, sign in to Claude as hello@iguanacomedy.com and press Authorize. Claude then shows a code: copy it and send it here as a message, straight away, because it expires after a few minutes. This message then runs by itself.":
+        'La cuenta de Claude del club tiene la sesión cerrada en el servidor, así que el agente no puede trabajar. Para volver a iniciarla: abre el enlace de abajo, entra en Claude con hello@iguanacomedy.com y pulsa Authorize. Claude te mostrará un código: cópialo y envíalo aquí como mensaje enseguida, porque caduca en pocos minutos. Después este mensaje se ejecutará solo.',
+    'Sign in to Claude': 'Iniciar sesión en Claude',
+    'Preparing a sign-in link, it appears here within a minute…': 'Preparando un enlace para iniciar sesión, aparecerá aquí en un minuto…',
     'That attempt hit an error, so the agent is trying again by itself (retry {0} of {1}). It will check what was already done and fix the cause if it can.':
         'Ese intento tuvo un error, así que el agente vuelve a intentarlo por su cuenta (reintento {0} de {1}). Revisará lo que ya quedó hecho y corregirá la causa si puede.',
-    "The club's Claude account is signed out on the server, so the agent cannot work. The developer has been emailed. This message runs by itself as soon as the account is signed back in.":
-        'La cuenta de Claude del club tiene la sesión cerrada en el servidor, así que el agente no puede trabajar. Ya se le avisó al desarrollador por correo. Este mensaje se ejecutará solo en cuanto se vuelva a iniciar sesión.',
     "The club's Claude plan has reached its usage limit. This message runs by itself when the limit resets, around {0}.":
         'El plan de Claude del club llegó a su límite de uso. Este mensaje se ejecutará solo cuando el límite se reinicie, hacia las {0}.',
     'Failed': 'Falló',

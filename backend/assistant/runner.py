@@ -99,13 +99,26 @@ def looks_like_sign_in_code(prompt):
 
 
 def submit_sign_in_code(code, command=None):
-    """Hand a pasted sign-in code to the waiting `claude setup-token` (iguana-agent-run --auth-code)."""
+    """Hand a pasted sign-in code to the waiting `claude setup-token` (iguana-agent-run --auth-code).
+    Returns (ok, why)."""
     command = (command or agent_command()) + ['--auth-code']
     try:
         done = subprocess.run(command, input=code.strip(), capture_output=True, text=True, timeout=90)
-        return bool(json.loads(done.stdout or '{}').get('ok'))
+        answer = json.loads(done.stdout or '{}')
+        return bool(answer.get('ok')), str(answer.get('why') or '')
+    except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError) as exc:
+        return False, f'could not reach the sign-in: {exc}'
+
+
+def sign_in_link(new=False, command=None):
+    """The link that signs the account back in (iguana-agent-run --auth-link), '' when none could be made."""
+    command = (command or agent_command()) + ['--auth-link'] + (['--new'] if new else [])
+    try:
+        done = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        url = str(json.loads(done.stdout or '{}').get('url') or '')
     except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError):
-        return False
+        return ''
+    return url if url.startswith('https://') else ''
 
 
 def _alert_signed_out(error):
@@ -114,9 +127,15 @@ def _alert_signed_out(error):
         return
     body = ('The /chat/ agent on the Iguana Comedy server cannot reach Claude: the club\'s account is signed out.\n\n'
             f'Claude Code said: {error}\n\n'
-            'Messages wait in the queue and run by themselves once it is signed in again. The lasting fix is a '
-            'long-lived token: on the server, `sudo -iu claude claude setup-token`, then save the token it prints '
-            'to /home/claude/.claude-oauth-token (mode 600). See docs/chat-agent.md.\n')
+            'To fix it, open https://iguanacomedy.com/chat/ . The waiting message shows a "Sign in to Claude" '
+            'link: open it, sign in as hello@iguanacomedy.com, press Authorize, copy the code it shows and send '
+            'that code as a message in the chat. Do it in one go: the code expires after a few minutes.\n\n'
+            'Messages wait and run by themselves once it is signed in. See docs/chat-agent.md.\n'
+            '\n---\n\n'
+            'El agente de /chat/ no puede conectarse a Claude: la cuenta del club tiene la sesión cerrada. Abre '
+            'https://iguanacomedy.com/chat/ , usa el enlace "Iniciar sesión en Claude" del mensaje en espera, '
+            'entra con hello@iguanacomedy.com, pulsa Authorize, copia el código y envíalo como mensaje en el chat. '
+            'Hazlo de una vez: el código caduca en pocos minutos.\n')
     try:
         send_mail('[iguana] /chat/ agent is signed out of Claude', body, settings.DEFAULT_FROM_EMAIL, recipients)
     except Exception:  # noqa: BLE001 - the alert must not take the worker down
@@ -132,7 +151,9 @@ def recover(turn_id, error, now=None):
     update = {'error': error, 'finished_at': None, 'started_at': None}
     if kind == 'auth':
         first = not Turn.objects.filter(status=Turn.QUEUED, notice='signed_out').exclude(pk=turn_id).exists()
-        Turn.objects.filter(pk=turn_id).update(status=Turn.QUEUED, notice='signed_out', retry_at=None, **update)
+        url = Turn.objects.filter(notice='signed_out').exclude(sign_in_url='').values_list('sign_in_url', flat=True).first()
+        Turn.objects.filter(pk=turn_id).update(status=Turn.QUEUED, notice='signed_out', retry_at=None,
+                                               sign_in_url=url or '', **update)
         if first:
             _alert_signed_out(error)
         return Turn.QUEUED

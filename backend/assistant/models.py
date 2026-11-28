@@ -48,6 +48,9 @@ class Turn(models.Model):
     attempts = models.PositiveSmallIntegerField(default=0, db_default=0)
     retry_at = models.DateTimeField(null=True, blank=True)
     notice = models.CharField(max_length=20, blank=True, default='', db_default='')
+    # While signed out: the link that signs the club's account back in, made fresh by the worker and shown in
+    # the chat (the code it gives is pasted back as a message).
+    sign_in_url = models.TextField(blank=True, default='', db_default='')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name='+')
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)

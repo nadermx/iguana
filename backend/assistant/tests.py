@@ -12,7 +12,7 @@ from django.test import override_settings
 from django.utils import timezone
 
 from assistant.management.commands.chat_worker import (claim_next, release_signed_out, resume_interrupted,
-                                                        take_sign_in_code)
+                                                        refresh_sign_in_link, take_sign_in_code)
 from assistant.models import Conversation, Turn
 from assistant.runner import MAX_RETRIES, TurnState, agent_prompt, classify, describe_tool, limit_reset, run_turn
 
@@ -219,13 +219,36 @@ class RunnerTests(TestCase):
         code = Turn.objects.create(conversation=self.conversation, notice='signed_out',
                                    prompt=' abcdefghijklmnopqrstuvwxyz0123#STATEabcdefghij ')
         got = []
-        self.assertTrue(take_sign_in_code(submit=lambda c: got.append(c) or True))
+        self.assertTrue(take_sign_in_code(submit=lambda c: got.append(c) or (True, '')))
         self.assertEqual(got, [code.prompt])
         code.refresh_from_db()
         self.assertEqual((code.status, code.prompt), (Turn.DONE, '(sign-in code)'))
         self.assertIn('Sesión iniciada', code.reply)
         self.assertEqual(Turn.objects.get(pk=waiting.pk).status, Turn.QUEUED)  # a task, left for the agent
         self.assertFalse(take_sign_in_code(submit=lambda c: self.fail('no code left')))
+
+    def test_a_refused_code_says_why_and_the_waiting_message_gets_a_fresh_link(self):
+        waiting = Turn.objects.create(conversation=self.conversation, prompt='add a show', notice='signed_out',
+                                      sign_in_url='https://claude.com/old')
+        code = Turn.objects.create(conversation=self.conversation, notice='signed_out',
+                                   prompt='abcdefghijklmnopqrstuvwxyz0123#STATEabcdefghij')
+        asked = []
+        self.assertFalse(take_sign_in_code(submit=lambda c: (False, 'no sign-in was waiting'),
+                                           link=lambda new=False: asked.append(new) or 'https://claude.com/new'))
+        code.refresh_from_db()
+        self.assertEqual(code.status, Turn.FAILED)
+        self.assertIn('no sign-in was waiting', code.reply)
+        self.assertEqual(asked, [True])
+        self.assertEqual(Turn.objects.get(pk=waiting.pk).sign_in_url, 'https://claude.com/new')
+
+    def test_the_chat_shows_the_sign_in_link_on_a_waiting_message(self):
+        owner = User.objects.create_superuser('o2', 'o2@iguanacomedy.com', 'pw')
+        self.client.force_login(owner)
+        Turn.objects.create(conversation=self.conversation, prompt='add a show', notice='signed_out',
+                            sign_in_url='https://claude.com/cai/oauth/authorize?x=1')
+        listed = self.client.get(f'/chat/{self.conversation.pk}/turns/').json()['turns']
+        self.assertEqual(listed[0]['sign_in_url'], 'https://claude.com/cai/oauth/authorize?x=1')
+        self.assertEqual(refresh_sign_in_link(link=lambda new=False: 'https://claude.com/b'), 'https://claude.com/b')
 
     def test_a_glitch_is_retried_with_the_error_and_then_succeeds(self):
         turn = self.run_one('boom')

@@ -46,13 +46,17 @@ refresh token was gone and Claude Code wiped the file). `sudo -iu claude claude 
 valid for a year; save it to `/home/claude/.claude-oauth-token` (mode 600, owner `claude`). Both
 `iguana-agent-run` and `iguana-clip-ai` already prefer that file.
 
-The person who signs in is Andrew (hello@ and his phone), so the code can come back through `/chat/` itself.
-Start the flow on the server, `sudo -iu claude tmux new -d -s setuptoken -x 400 'claude setup-token'`, read the
-link with `sudo -iu claude tmux capture-pane -p -J -t setuptoken`, and send it to him. While the account is
-signed out, a `/chat/` message that is nothing but a code (`take_sign_in_code`) is handed to that tmux session
-(`iguana-agent-run --auth-code`), which saves the printed token to `~/.claude-oauth-token`; the message is
-answered, stored as `(sign-in code)`, never run, and the waiting messages start. The code expires within
-minutes, so a code that arrives late fails with "ask for a new sign-in link": start a new session and resend.
+The person who signs in is Andrew (hello@ and his phone), so the whole sign-in happens in `/chat/`. While a
+message waits as `signed_out`, the worker keeps a `claude setup-token` waiting in tmux (`iguana-agent-run
+--auth-link`, session `setuptoken` as `claude`) and shows its link on the message as "Sign in to Claude". He opens
+it, signs in as hello@, presses Authorize and sends the code it shows as a chat message. That message
+(`take_sign_in_code`) is typed into the session (`--auth-code`), the printed token is saved to
+`~/.claude-oauth-token`, the message is stored as `(sign-in code)` and never run, and the waiting messages start.
+A refused code says why in the chat and the waiting message gets a fresh link.
+
+🚨 **Never mail a sign-in link made ahead of time.** The link belongs to one waiting setup-token session; on
+2026-11-27 Andrew pasted two codes from a link mailed the day before, and the session behind it had already
+ended, so both were refused. The link must be made when someone is there to use it, which is what the chat does.
 
 The full transcript (prompts, replies, every tool call) is in Postgres, so it is in the nightly backup and
 readable at `/admin/assistant/conversation/`.

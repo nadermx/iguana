@@ -57,6 +57,7 @@ def _turn(turn):
         'notice': turn.notice if turn.status == Turn.QUEUED else '',
         'attempts': turn.attempts,
         'retry_at': turn.retry_at.isoformat() if turn.retry_at else None,
+        'sign_in_url': turn.sign_in_url if turn.status == Turn.QUEUED and turn.notice == 'signed_out' else '',
     }
 
 
@@ -88,7 +89,9 @@ def chat(request):
         'uploading': 'Uploading, {0}% done. Keep this page open.',
         'last_error': 'Last error: {0}',
         'notice_retry': 'That attempt hit an error, so the agent is trying again by itself (retry {0} of {1}). It will check what was already done and fix the cause if it can.',
-        'notice_signed_out': "The club's Claude account is signed out on the server, so the agent cannot work. The developer has been emailed. This message runs by itself as soon as the account is signed back in.",
+        'notice_signed_out': "The club's Claude account is signed out on the server, so the agent cannot work. To sign it back in: open the link below, sign in to Claude as hello@iguanacomedy.com and press Authorize. Claude then shows a code: copy it and send it here as a message, straight away, because it expires after a few minutes. This message then runs by itself.",
+        'sign_in': 'Sign in to Claude',
+        'sign_in_wait': 'Preparing a sign-in link, it appears here within a minute…',
         'notice_limit': "The club's Claude plan has reached its usage limit. This message runs by itself when the limit resets, around {0}.",
     }.items()}
     return render(request, 'embed/chat.html', {

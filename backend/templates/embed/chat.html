@@ -30,6 +30,7 @@
   .state button { font: 700 .68rem/1 "DM Sans", sans-serif; letter-spacing: .1em; text-transform: uppercase;
                   border: 1px solid var(--danger); color: var(--danger); background: #fff; border-radius: 999px;
                   min-height: 36px; padding: 0 14px; cursor: pointer; }
+  a.signin { display: inline-block; padding: 10px 16px; border-radius: 8px; background: var(--brand); color: #fff; font-weight: 700; text-decoration: none; margin-top: 8px; }
   .err { color: var(--danger); white-space: pre-wrap; font-size: .85rem; margin-top: 8px; }
   details.steps { margin-top: 8px; font-size: .8rem; color: var(--muted); }
   details.steps summary { cursor: pointer; min-height: 32px; display: flex; align-items: center; }
@@ -131,6 +132,11 @@
         if (t.notice === 'retry') note = note.replace('{0}', t.attempts).replace('{1}', MAXR);
         if (t.notice === 'limit') note = note.replace('{0}', t.retry_at ? new Date(t.retry_at).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) : '?');
         agent += '<div class="state">' + esc(note) + '</div>';
+        if (t.notice === 'signed_out') {
+          agent += t.sign_in_url
+            ? '<p><a class="signin" href="' + esc(t.sign_in_url) + '" target="_blank" rel="noopener noreferrer">' + esc(S.sign_in) + '</a></p>'
+            : '<div class="state">' + esc(S.sign_in_wait) + '</div>';
+        }
         if (t.error) agent += '<div class="err">' + esc(S.last_error.replace('{0}', t.error)) + '</div>';
       } else if (t.error) agent += '<div class="err">' + esc((t.status === 'failed' ? S.failed + ': ' : '') + t.error) + '</div>';
       if (!t.finished) {
