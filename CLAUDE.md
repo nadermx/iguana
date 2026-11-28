@@ -63,6 +63,8 @@ cp config_example.py config.py   # DEBUG=True, SITE_URLS, PUBLIC_API_KEYS, EMAIL
 .venv/bin/python manage.py migrate
 .venv/bin/python manage.py runserver 127.0.0.1:8000
 .venv/bin/python manage.py test api crm pos assistant                         # all backend tests (sales has none of its own)
+# 🚨 Upload tests (chat attachments, /comic/, /drop/) fail with KeyError/400 when the temp dir's disk is nearly full:
+# that is the low_on_disk guard, not a bug. Run them with TMPDIR on a roomier disk (TMPDIR=~/.cache/x ...).
 .venv/bin/python manage.py test api.tests.CheckoutTests.test_member_free_tickets_then_guest_discount  # one test
 .venv/bin/python manage.py test api.tests_videos   # /upload/ pieces, /videos/, the clip finder (real ffmpeg; the AI step is mocked)
 .venv/bin/python manage.py process_videos          # web copies + AI clip jobs, what the every-minute cron runs
@@ -194,7 +196,7 @@ copy a script up and `ansible all --become --become-user iguana -m shell -a "cd 
 venv/bin/python manage.py shell < /tmp/q_<something unique>.py" </dev/null` (without `</dev/null` ansible can abort on a
 non-blocking stdin). Give the file a unique name and delete it after: a stale `/tmp/q.py` owned by another user
 already sits on the box, so copying over it fails with "Operation not permitted" and the shell then runs the
-OLD script.
+OLD script. Copy it with `--become` and delete it the same way: as `iguana` the `rm` fails on the root-owned copy.
 nginx fronts supervisor programs `iguana:iguana-web` (Node, :3000) and `iguana:iguana-api` (gunicorn, :8001);
 Postgres `iguana`. `iguanacomedy.com` is canonical (DNS on Cloudflare, records must stay DNS-only: proxied records
 pointing at Cloudflare IPs caused the old Error 1000); `iguanacomedy.mx` 301s to it; API at
@@ -402,8 +404,11 @@ Detail and evidence: **`docs/mail.md`**. `iguana-mail` on the server reads the l
   publishes goes into the live `backend/media/`, never into git.
 - **It heals its own failures** (`assistant/runner.py::recover`): a glitch or a mid-turn restart is retried up to
   3 times with the error in the prompt; a signed-out account waits, mails `CHAT_ALERT_EMAILS` once and runs when
-  `iguana-agent-run --auth-status` says signed in; a usage limit waits for the reset. Keep the server on a
-  `claude setup-token` token in `/home/claude/.claude-oauth-token`; `/login` credentials can fail to refresh.
+  `iguana-agent-run --auth-status` says signed in; a usage limit waits for the reset.
+- 🚨 **Signing it back in happens inside `/chat/`**: the waiting message shows a "Sign in to Claude" link to a
+  `claude setup-token` the worker keeps open (`--auth-link`), and the code pasted back as a message saves a 1-year
+  token to `/home/claude/.claude-oauth-token`. Never mail a link made ahead of time: it belongs to one tmux session
+  that ends, and a code from it is refused (2026-11-27).
 - Infrastructure is still ansible's alone. If the agent changed something live with sudo, its deploy email
   says so; land the matching `ansible/` change before the next `deploy.yml` undoes it.
 
